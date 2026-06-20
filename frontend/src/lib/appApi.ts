@@ -142,8 +142,17 @@ export const appApi = {
     support: {
       tickets: (params: any = {}) => api(`/api/admin/support/tickets?${qs(params)}`),
       detail: (id: string) => api(`/api/admin/support/tickets/${id}`),
-      escalate: (id: string) => api(`/api/admin/support/tickets/${id}/escalate`, { method: 'POST' }),
+      ticketDetail: (id: string) => api(`/api/admin/support/tickets/${id}`),
+      escalate: (id: string, data?: { reason?: string }) => api(`/api/admin/support/tickets/${id}/escalate`, { method: 'POST', body: JSON.stringify(data || {}) }),
       resolve: (id: string, resolution: string) => api(`/api/admin/support/tickets/${id}/resolve`, { method: 'POST', body: JSON.stringify({ resolution }) }),
+      reply: (ticketId: string, data: { content: string, isInternal?: boolean }) => api(`/api/admin/support/tickets/${ticketId}/reply`, { method: 'POST', body: JSON.stringify(data) }),
+      status: (ticketId: string, data: { status: string }) => api(`/api/admin/support/tickets/${ticketId}/status`, { method: 'PATCH', body: JSON.stringify(data) }),
+      priority: (ticketId: string, data: { priority: string }) => api(`/api/admin/support/tickets/${ticketId}/priority`, { method: 'PATCH', body: JSON.stringify(data) }),
+      assign: (ticketId: string, data: { agentId: string }) => api(`/api/admin/support/tickets/${ticketId}/assign`, { method: 'POST', body: JSON.stringify(data) }),
+      addTag: (ticketId: string, data: { tags: string[] }) => api(`/api/admin/support/tickets/${ticketId}/tags`, { method: 'POST', body: JSON.stringify(data) }),
+      removeTag: (ticketId: string, tag: string) => api(`/api/admin/support/tickets/${ticketId}/tags/${tag}`, { method: 'DELETE' }),
+      merge: (ticketId: string, data: { sourceTicketId: string }) => api(`/api/admin/support/tickets/${ticketId}/merge`, { method: 'POST', body: JSON.stringify(data) }),
+      stats: () => api('/api/admin/support/stats'),
     },
     // ─── Symbols ───
     symbols: {
@@ -225,6 +234,15 @@ export const appApi = {
   setTokens,
   loadTokens,
   getCurrentUser,
+
+  // User Support endpoints
+  support: {
+    tickets: (params: any = {}) => api(`/api/support/tickets?${qs(params)}`),
+    ticketDetail: (id: string) => api(`/api/support/tickets/${id}`),
+    createTicket: (data: any) => api('/api/support/tickets', { method: 'POST', body: JSON.stringify(data) }),
+    reply: (ticketId: string, data: { content: string }) => api(`/api/support/tickets/${ticketId}/reply`, { method: 'POST', body: JSON.stringify(data) }),
+    closeTicket: (ticketId: string, data?: { reason?: string, rating?: number, comment?: string }) => api(`/api/support/tickets/${ticketId}/close`, { method: 'POST', body: JSON.stringify(data || {}) }),
+  },
 
   // User KYC endpoints
   kycSubmit: (body: any) => api('/api/kyc/submit', { method: 'POST', body: JSON.stringify(body) }),
