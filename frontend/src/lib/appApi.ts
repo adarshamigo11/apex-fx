@@ -110,11 +110,12 @@ export const appApi = {
     },
     // ─── KYC ───
     kyc: {
-      list: (status?: string) => api(`/api/admin/kyc${status ? `?status=${status}` : ''}`),
+      list: (params: any = {}) => api(`/api/admin/kyc?${qs(params)}`),
       decide: (id: string, decision: 'APPROVED' | 'REJECTED', note?: string) =>
         api(`/api/admin/kyc/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision, note }) }),
       requestDocs: (id: string, docTypes: string[]) =>
         api(`/api/admin/kyc/${id}/request-docs`, { method: 'POST', body: JSON.stringify({ docTypes }) }),
+      stats: () => api('/api/admin/kyc/stats'),
     },
     // ─── Deposits ───
     deposits: {
