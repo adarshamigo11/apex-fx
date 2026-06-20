@@ -115,8 +115,8 @@ export const appApi = {
         api(`/api/admin/kyc/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision, note }) }),
       review: (id: string, data: any) =>
         api(`/api/admin/kyc/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),
-      requestDocs: (id: string, docTypes: string[]) =>
-        api(`/api/admin/kyc/${id}/request-docs`, { method: 'POST', body: JSON.stringify({ docTypes }) }),
+      requestDocs: (id: string, data: { docTypes: string[], note?: string }) =>
+        api(`/api/admin/kyc/${id}/request-docs`, { method: 'POST', body: JSON.stringify(data) }),
       stats: () => api('/api/admin/kyc/stats'),
     },
     // ─── Deposits ───
