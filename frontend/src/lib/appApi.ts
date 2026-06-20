@@ -113,6 +113,8 @@ export const appApi = {
       list: (params: any = {}) => api(`/api/admin/kyc?${qs(params)}`),
       decide: (id: string, decision: 'APPROVED' | 'REJECTED', note?: string) =>
         api(`/api/admin/kyc/${id}/decision`, { method: 'POST', body: JSON.stringify({ decision, note }) }),
+      review: (id: string, data: any) =>
+        api(`/api/admin/kyc/${id}/review`, { method: 'POST', body: JSON.stringify(data) }),
       requestDocs: (id: string, docTypes: string[]) =>
         api(`/api/admin/kyc/${id}/request-docs`, { method: 'POST', body: JSON.stringify({ docTypes }) }),
       stats: () => api('/api/admin/kyc/stats'),
@@ -224,8 +226,7 @@ export const appApi = {
   loadTokens,
   getCurrentUser,
 
-  // KYC endpoints
-  kyc: () => api('/api/kyc'),
+  // User KYC endpoints
   kycSubmit: (body: any) => api('/api/kyc/submit', { method: 'POST', body: JSON.stringify(body) }),
   kycUploadUrl: (body: any) => api('/api/kyc/documents/upload', { method: 'POST', body: JSON.stringify(body) }),
   kycCountries: () => api('/api/kyc/countries'),
