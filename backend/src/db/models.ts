@@ -168,11 +168,27 @@ export interface TradeHistoryDoc {
   openTime: Date; closeTime: Date;
 }
 
+export interface KycDocument {
+  type: string;
+  url: string;
+  uploadedAt: Date;
+  status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+}
+
+export interface KycSubmissionHistory {
+  submittedAt: Date;
+  status: KycStatus;
+  reviewNote?: string;
+  documents?: KycDocument[];
+}
+
 export interface KycDoc {
   _id?: ObjectId; userId: ObjectId;
   fullName: string; country: string; documentType: string; documentNumber: string;
   status: KycStatus; reviewedBy?: ObjectId | null; reviewNote?: string;
   requestedDocs?: string[];
+  documents?: KycDocument[];
+  submissionHistory?: KycSubmissionHistory[];
   createdAt: Date; updatedAt: Date;
 }
 
