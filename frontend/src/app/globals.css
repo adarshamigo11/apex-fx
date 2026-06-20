@@ -1,0 +1,63 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #f4f6fb;
+  --surface: rgba(255,255,255,.7);
+  --border: rgba(15,22,38,.10);
+  --text: #0f1626;
+  --muted: #5b6477;
+  --sidebar-w: 260px;
+  --sidebar-collapsed: 72px;
+}
+html.dark {
+  --bg: #0a0e1a;
+  --surface: rgba(255,255,255,.05);
+  --border: rgba(255,255,255,.09);
+  --text: #e6edf3;
+  --muted: #8a94a6;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--text); transition: background .3s, color .3s; }
+
+.glass {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+}
+.text-muted { color: var(--muted); }
+
+/* Chart container */
+.tv-lightweight-charts { border-radius: 8px; }
+
+/* Select dropdowns */
+select { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 2px 6px; }
+select option { background: var(--bg); color: var(--text); }
+
+/* Number inputs */
+input[type=number]::-webkit-inner-spin-button,
+input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+input[type=number] { -moz-appearance: textfield; }
+
+/* Safe area for bottom nav (iOS notch) */
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Scrollbar */
+.scrollbar-thin::-webkit-scrollbar { width: 4px; }
+.scrollbar-thin::-webkit-scrollbar-track { background: transparent; }
+.scrollbar-thin::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+/* Sidebar transitions */
+.sidebar-transition { transition: width 0.2s ease, padding 0.2s ease; }
+
+/* Tabs */
+.tab-active { border-bottom: 2px solid #39ff8b; color: #39ff8b; }
+.tab-inactive { border-bottom: 2px solid transparent; color: var(--muted); }
+.tab-inactive:hover { color: var(--text); }
+
+/* Mobile-specific tweaks */
+@media (max-width: 767px) {
+  .tv-lightweight-charts { border-radius: 6px; }
+  table { font-size: 11px; }
+}

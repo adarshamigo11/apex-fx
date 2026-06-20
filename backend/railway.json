@@ -1,0 +1,17 @@
+{
+  "builds": [
+    {
+      "src": "src/server.ts",
+      "use": "@railway/node",
+      "config": {
+        "buildCommand": "npm run build"
+      }
+    }
+  ],
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "src/server.ts"
+    }
+  ]
+}

@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tidemark Markets — 3D Trading Experience</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --abyss:#04091A;--deep:#071230;--ocean:#0A1F52;--tide:#10337E;
+  --signal:#38E1FF;--foam:#E9F0FC;--mist:#8FA4C9;--kelp:#2EE6A8;--coral:#FF5C7A;--gilt:#F2C66E;
+  --display:'Sora',sans-serif;--body:'Instrument Sans',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{font-family:var(--body);color:var(--foam);background:#04091A;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+a{color:inherit;text-decoration:none}ul,ol{list-style:none}
+.section{max-width:1180px;margin:0 auto;padding:0 20px}
+@media(min-width:640px){.section{padding:0 32px}}
+.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:rgba(56,225,255,.85)}
+h1,h2,h3{font-family:var(--display);font-weight:600;letter-spacing:-.02em}
+.grad-text{background:linear-gradient(90deg,var(--signal),#7aa8ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+
+/* ---- WebGL canvas behind everything ---- */
+#bg-canvas{position:fixed;inset:0;width:100%;height:100%;z-index:0;display:block}
+.bg-overlay{position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:radial-gradient(ellipse 80% 60% at 50% 0%,transparent 30%,rgba(4,9,26,.55) 75%,rgba(4,9,26,.9) 100%)}
+.content{position:relative;z-index:2}
+
+.glass{border-radius:16px;border:1px solid rgba(233,240,252,.1);background:rgba(7,18,48,.45);
+  box-shadow:0 18px 60px -24px rgba(2,10,32,.85),inset 0 1px 0 rgba(233,240,252,.08);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px)}
+.glass-strong{border-radius:16px;border:1px solid rgba(233,240,252,.15);background:rgba(10,31,82,.4);
+  box-shadow:0 28px 80px -30px rgba(2,10,32,.9),inset 0 1px 0 rgba(233,240,252,.1);
+  backdrop-filter:blur(26px);-webkit-backdrop-filter:blur(26px)}
+.btn{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:14px 28px;
+  font-family:var(--display);font-size:14px;font-weight:600;cursor:pointer;transition:.25s;border:0}
+.btn-primary{background:var(--signal);color:var(--abyss);box-shadow:0 0 42px -8px rgba(56,225,255,.55)}
+.btn-primary:hover{transform:translateY(-2px);background:#5fe9ff;box-shadow:0 0 56px -6px rgba(56,225,255,.75)}
+.btn-ghost{border:1px solid rgba(233,240,252,.25);background:rgba(233,240,252,.05);color:var(--foam)}
+.btn-ghost:hover{transform:translateY(-2px);border-color:rgba(56,225,255,.6);color:var(--signal)}
+
+.reveal{opacity:0;transform:translateY(30px);transition:opacity .85s cubic-bezier(.22,1,.36,1),transform .85s cubic-bezier(.22,1,.36,1);transition-delay:var(--d,0ms)}
+.reveal.is-visible{opacity:1;transform:translateY(0)}
+
+/* nav */
+nav.topbar{position:fixed;inset:0 0 auto 0;z-index:50;transition:.3s}
+nav.topbar.scrolled{border-bottom:1px solid rgba(233,240,252,.1);background:rgba(4,9,26,.65);backdrop-filter:blur(20px)}
+.nav-inner{display:flex;align-items:center;justify-content:space-between;height:68px;gap:16px}
+.brand{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:600;font-size:17px}
+.brand .dot{color:var(--signal)}
+.nav-links{display:none;gap:4px}
+.nav-links a{font-size:14px;color:var(--mist);padding:8px 14px;border-radius:999px;transition:.2s}
+.nav-links a:hover{color:var(--foam);background:rgba(233,240,252,.06)}
+.nav-links a.active{color:var(--signal);background:rgba(233,240,252,.1)}
+.nav-cta{display:none;align-items:center;gap:10px}
+.hamburger{display:block;background:none;border:1px solid rgba(233,240,252,.15);border-radius:10px;padding:8px;color:var(--foam);cursor:pointer}
+@media(min-width:1024px){.nav-links{display:flex}.nav-cta{display:flex}.hamburger{display:none}}
+.mobile-menu{display:none;border-top:1px solid rgba(233,240,252,.1);background:rgba(4,9,26,.95);backdrop-filter:blur(28px)}
+.mobile-menu.open{display:block}
+.mobile-menu a{display:block;padding:13px 16px;border-radius:12px;font-size:15px;color:rgba(233,240,252,.85)}
+
+/* hero */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding-top:90px;position:relative}
+.live-dot{display:inline-flex;width:6px;height:6px;border-radius:50%;background:var(--kelp);animation:pulseDot 1.6s ease-in-out infinite;margin-right:8px;box-shadow:0 0 10px var(--kelp)}
+@keyframes pulseDot{0%,100%{opacity:1}50%{opacity:.3}}
+.hero h1{font-size:clamp(36px,6.2vw,72px);line-height:1.04;margin-top:20px;font-weight:700;max-width:14ch;text-shadow:0 4px 40px rgba(4,9,26,.6)}
+.hero p.sub{margin-top:24px;max-width:560px;font-size:clamp(16px,2vw,19px);line-height:1.65;color:var(--mist)}
+.hero-ctas{margin-top:36px;display:flex;flex-wrap:wrap;gap:16px}
+.hero-meta{margin-top:28px;font-family:var(--mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:rgba(143,164,201,.7)}
+.scroll-cue{position:absolute;bottom:28px;left:50%;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--mist);font-family:var(--mono);font-size:10px;letter-spacing:.3em;text-transform:uppercase;animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateX(-50%) translateY(0)}50%{transform:translateX(-50%) translateY(8px)}}
+
+/* live HUD floating in hero */
+.hud{position:absolute;pointer-events:none}
+.hud-card{padding:13px 15px;min-width:150px}
+.hud-card .lbl{font-family:var(--mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--mist)}
+.hud-card .px{font-family:var(--mono);font-size:17px;font-weight:600;margin-top:3px;font-variant-numeric:tabular-nums}
+.hud-card .sub{font-family:var(--mono);font-size:11px;margin-top:2px}
+.up{color:var(--kelp)}.down{color:var(--coral)}
+
+/* ticker */
+.tape{overflow:hidden;border-top:1px solid rgba(233,240,252,.1);border-bottom:1px solid rgba(233,240,252,.1);background:rgba(4,9,26,.55);backdrop-filter:blur(8px)}
+.tape-track{display:flex;width:max-content;animation:ticker 40s linear infinite}
+@keyframes ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}
+.tape ul{display:flex}
+.tape li{display:flex;align-items:center;gap:10px;padding:11px 24px;border-right:1px solid rgba(233,240,252,.1);font-family:var(--mono);font-size:12px;white-space:nowrap}
+
+section.block{margin-top:96px;position:relative}
+.sec-head{max-width:640px;margin:0 auto;text-align:center}
+.sec-head h2{font-size:clamp(26px,4vw,40px);line-height:1.16;margin-top:12px}
+.sec-head p{margin-top:16px;font-size:15px;line-height:1.7;color:var(--mist)}
+.grid{display:grid;gap:22px;margin-top:48px}
+.g2{grid-template-columns:1fr}.g3{grid-template-columns:1fr}.g4{grid-template-columns:1fr}
+@media(min-width:640px){.g2,.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}}
+@media(min-width:1024px){.g3{grid-template-columns:repeat(3,1fr)}.g4{grid-template-columns:repeat(4,1fr)}}
+
+.stat{padding:26px;text-align:center}
+.stat .v{font-family:var(--display);font-size:36px;font-weight:700}
+.stat .v span{font-size:20px;color:var(--signal)}
+.stat .l{margin-top:8px;font-family:var(--display);font-size:14px;font-weight:600;color:rgba(56,225,255,.9)}
+.stat .d{margin-top:4px;font-size:13px;color:var(--mist)}
+
+/* 3D interactive cards */
+.tilt-wrap{perspective:1000px}
+.card3d{padding:28px;height:100%;transition:transform .15s ease-out,box-shadow .3s,border-color .3s;transform-style:preserve-3d;will-change:transform}
+.card3d .shine{position:absolute;inset:0;border-radius:16px;opacity:0;transition:opacity .3s;
+  background:radial-gradient(420px circle at var(--mx,50%) var(--my,50%),rgba(56,225,255,.16),transparent 45%);pointer-events:none}
+.card3d:hover .shine{opacity:1}
+.card3d:hover{border-color:rgba(56,225,255,.35)}
+.card3d .lift{transform:translateZ(36px);transform-style:preserve-3d}
+.icon-chip{display:inline-flex;border-radius:12px;border:1px solid rgba(56,225,255,.25);background:rgba(56,225,255,.1);padding:12px;color:var(--signal);box-shadow:0 0 24px -6px rgba(56,225,255,.4)}
+.card3d h3{margin-top:18px;font-size:18px}
+.card3d p{margin-top:10px;font-size:14px;line-height:1.65;color:var(--mist)}
+
+/* accounts */
+.acct{padding:28px;display:flex;flex-direction:column;position:relative;height:100%;transition:transform .15s ease-out,border-color .3s;transform-style:preserve-3d;will-change:transform}
+.acct .shine{position:absolute;inset:0;border-radius:16px;opacity:0;transition:opacity .3s;background:radial-gradient(420px circle at var(--mx,50%) var(--my,50%),rgba(56,225,255,.14),transparent 45%);pointer-events:none}
+.acct:hover .shine{opacity:1}
+.acct .pop{position:absolute;top:-12px;left:28px;background:var(--signal);color:var(--abyss);font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.18em;text-transform:uppercase;border-radius:999px;padding:4px 12px;transform:translateZ(40px)}
+.acct .strap{margin-top:4px;font-size:14px;color:var(--mist)}
+.acct .spread{margin-top:22px;font-family:var(--display);font-size:30px;font-weight:700;color:var(--signal);transform:translateZ(30px)}
+.acct .comm{margin-top:4px;font-family:var(--mono);font-size:12px;color:var(--mist)}
+.acct dl{margin-top:22px;border-top:1px solid rgba(233,240,252,.1);padding-top:18px;font-size:14px}
+.acct dl div{display:flex;justify-content:space-between;gap:16px;margin-bottom:10px}
+.acct dt{color:var(--mist)}.acct dd{font-family:var(--mono);font-size:13px;text-align:right}
+.acct ul{margin-top:14px}
+.acct ul li{display:flex;gap:10px;align-items:flex-start;font-size:14px;color:rgba(233,240,252,.85);margin-bottom:9px}
+.acct .best{margin-top:14px;font-size:13px;font-style:italic;color:rgba(143,164,201,.8)}
+.acct .btn{justify-content:center;width:100%;padding:12px;margin-top:24px;font-size:13px}
+.check{flex-shrink:0;margin-top:2px;color:var(--kelp)}
+.featured{outline:1px solid rgba(56,225,255,.4)}
+
+.mkt{padding:24px;display:block;height:100%;transition:transform .15s ease-out,border-color .3s;transform-style:preserve-3d}
+.mkt .shine{position:absolute;inset:0;border-radius:16px;opacity:0;transition:opacity .3s;background:radial-gradient(360px circle at var(--mx,50%) var(--my,50%),rgba(56,225,255,.13),transparent 45%);pointer-events:none}
+.mkt:hover .shine{opacity:1}.mkt:hover{border-color:rgba(56,225,255,.3)}
+.mkt .row{display:flex;justify-content:space-between;align-items:baseline;gap:12px}
+.mkt .count{font-family:var(--mono);font-size:11px;color:var(--signal)}
+.mkt p{margin-top:8px;font-size:13px;line-height:1.6;color:var(--mist)}
+.mkt ul{margin-top:14px;border-top:1px solid rgba(233,240,252,.1);padding-top:14px}
+.mkt ul li{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;margin-bottom:7px}
+.mkt ul li span:last-child{color:var(--mist)}
+
+.step{padding:26px;position:relative;height:100%}
+.step .n{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--signal)}
+.step h3{margin-top:12px;font-size:20px}
+.step p{margin-top:10px;font-size:14px;line-height:1.65;color:var(--mist)}
+
+.partner{display:grid;gap:30px;padding:38px;overflow:hidden}
+@media(min-width:880px){.partner{grid-template-columns:1.3fr 1fr;padding:46px;align-items:center}}
+.partner h2{font-size:clamp(26px,3.6vw,38px);margin-top:12px}
+.partner p{margin-top:16px;max-width:480px;font-size:15px;line-height:1.7;color:var(--mist)}
+.partner .feat li{display:flex;align-items:center;gap:12px;font-size:14px;padding:14px 18px;margin-bottom:11px;color:rgba(233,240,252,.9)}
+
+.cta-band{margin-top:96px;padding:54px 28px;text-align:center;position:relative;overflow:hidden}
+.cta-band .blob1{position:absolute;right:-90px;top:-90px;width:300px;height:300px;border-radius:50%;background:rgba(56,225,255,.16);filter:blur(70px)}
+.cta-band .blob2{position:absolute;left:-90px;bottom:-110px;width:300px;height:300px;border-radius:50%;background:rgba(16,51,126,.45);filter:blur(70px)}
+.cta-band h2{font-size:clamp(26px,4vw,40px);max-width:620px;margin:0 auto;position:relative}
+.cta-band p{margin:16px auto 0;max-width:520px;font-size:15px;line-height:1.7;color:var(--mist);position:relative}
+.cta-band .row{margin-top:30px;display:flex;justify-content:center;gap:16px;flex-wrap:wrap;position:relative}
+
+footer{margin-top:100px;border-top:1px solid rgba(233,240,252,.1);background:rgba(4,9,26,.7);backdrop-filter:blur(20px)}
+.foot-grid{display:grid;gap:36px;padding:54px 0}
+@media(min-width:880px){.foot-grid{grid-template-columns:1.4fr 1fr 1fr 1fr}}
+.foot-grid p.about{margin-top:14px;max-width:300px;font-size:14px;line-height:1.65;color:var(--mist)}
+.foot-grid h4{font-family:var(--mono);font-size:11px;letter-spacing:.32em;text-transform:uppercase;color:rgba(56,225,255,.8);font-weight:500}
+.foot-grid nav ul{margin-top:16px}.foot-grid nav li{margin-bottom:10px}
+.foot-grid nav a{font-size:14px;color:rgba(233,240,252,.75);transition:.2s}.foot-grid nav a:hover{color:var(--signal)}
+.risk{border-top:1px solid rgba(233,240,252,.1);padding:32px 0}
+.risk h4{font-family:var(--display);font-size:14px;font-weight:600;color:var(--coral)}
+.risk p{margin-top:10px;max-width:860px;font-size:13px;line-height:1.7;color:var(--mist)}
+.risk .copy{margin-top:16px;font-size:12px;color:rgba(143,164,201,.6)}
+
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+  .reveal{opacity:1;transform:none}.scroll-cue{display:none}
+}
+</style>
+</head>
+<body>
+
+<canvas id="bg-canvas"></canvas>
+<div class="bg-overlay"></div>
+
+<div class="content">
+
+<!-- NAV -->
+<nav class="topbar" id="topbar">
+  <div class="section nav-inner">
+    <a href="#" class="brand">
+      <svg viewBox="0 0 40 40" width="34" height="34" fill="none">
+        <defs><linearGradient id="g1" x1="0" y1="0" x2="40" y2="40"><stop offset="0%" stop-color="#38E1FF"/><stop offset="100%" stop-color="#1059D6"/></linearGradient></defs>
+        <rect x="1.5" y="1.5" width="37" height="37" rx="10" stroke="url(#g1)" stroke-width="2"/>
+        <path d="M7 24c3.5 0 3.5-4 7-4s3.5 4 7 4 3.5-4 7-4 3.5 4 5 4" stroke="url(#g1)" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M20 8v6M20 26v6" stroke="#E9F0FC" stroke-width="2.2" stroke-linecap="round"/>
+        <rect x="16.6" y="13" width="6.8" height="14" rx="1.6" fill="url(#g1)"/>
+      </svg>
+      Tidemark<span class="dot">.</span>Markets
+    </a>
+    <div class="nav-links">
+      <a href="#" class="active">Home</a><a href="#accounts">Accounts</a><a href="#platforms">Platforms</a>
+      <a href="#markets">Markets</a><a href="#funding">Pricing</a><a href="#partners">Partners</a><a href="#footer">Contact</a>
+    </div>
+    <div class="nav-cta">
+      <a href="/login" style="font-size:14px;color:var(--mist);padding:8px 14px">Log in</a>
+      <a href="/register" class="btn btn-primary" style="padding:10px 20px;font-size:13px">Open Live Account</a>
+    </div>
+    <button class="hamburger" id="hamburger" aria-label="Menu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M4 12h16M4 17h16" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div class="mobile-menu" id="mobileMenu"><div class="section" style="padding:14px 20px 18px">
+    <a href="#">Home</a><a href="#accounts">Accounts</a><a href="#platforms">Platforms</a><a href="#markets">Markets</a><a href="#funding">Pricing</a><a href="#partners">Partners</a><a href="#footer">Contact</a>
+    <div style="display:flex;gap:12px;margin-top:14px"><a href="/login" class="btn btn-ghost" style="flex:1;justify-content:center;padding:12px;font-size:13px">Log in</a><a href="/register" class="btn btn-primary" style="flex:1;justify-content:center;padding:12px;font-size:13px">Open Account</a></div>
+  </div></div>
+</nav>
+
+<!-- HERO -->
+<header class="hero">
+  <div class="section">
+    <div class="reveal">
+      <p class="eyebrow"><span class="live-dot"></span>Live order flow · WebGL</p>
+      <h1>Trade Global Markets With <span class="grad-text">Institutional-Grade</span> Conditions</h1>
+      <p class="sub">Access forex, commodities, indices, stocks and crypto CFDs with raw pricing, fast execution and powerful trading platforms built for serious traders.</p>
+      <div class="hero-ctas">
+        <a href="/register" class="btn btn-primary">Open Live Account
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+        <a href="/login" class="btn btn-ghost">Try Demo Account</a>
+      </div>
+      <p class="hero-meta">Spreads from 0.0 pips · No requotes · Same-day withdrawals</p>
+    </div>
+  </div>
+  <!-- floating live HUD cards (move with parallax) -->
+  <div class="hud" id="hud1" style="top:24%;right:6%"><div class="glass hud-card"><p class="lbl">EURUSD</p><p class="px" id="pxEur">1.08423</p><p class="sub up">▲ spread 0.0</p></div></div>
+  <div class="hud" id="hud2" style="bottom:22%;right:14%"><div class="glass hud-card"><p class="lbl">XAUUSD · Gold</p><p class="px" id="pxGold">2,384.6</p><p class="sub up">exec 31 ms</p></div></div>
+  <div class="hud" id="hud3" style="top:40%;left:4%"><div class="glass hud-card"><p class="lbl">BTCUSD</p><p class="px" id="pxBtc">67,410</p><p class="sub up">▲ 1.32%</p></div></div>
+  <div class="scroll-cue">Scroll<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M12 5v14m-6-6l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+</header>
+
+<div class="tape"><div class="tape-track" id="tape"></div></div>
+
+<!-- STATS -->
+<section class="block">
+  <div class="section"><div class="grid g4">
+    <div class="glass stat reveal"><p class="v">0.0<span> pips</span></p><p class="l">Raw spreads from</p><p class="d">Top-of-book pricing on majors</p></div>
+    <div class="glass stat reveal" style="--d:100ms"><p class="v">&lt;40<span> ms</span></p><p class="l">Average execution</p><p class="d">Co-located order routing</p></div>
+    <div class="glass stat reveal" style="--d:200ms"><p class="v">2,000+</p><p class="l">Instruments</p><p class="d">FX, metals, indices, crypto, shares</p></div>
+    <div class="glass stat reveal" style="--d:300ms"><p class="v">24/7</p><p class="l">Trader support</p><p class="d">Multilingual desk, every market hour</p></div>
+  </div></div>
+</section>
+
+<!-- WHY -->
+<section class="block">
+  <div class="section">
+    <div class="sec-head reveal"><p class="eyebrow">Why Tidemark</p><h2>An edge you can measure, not marketing you can't</h2>
+    <p>Every claim on this page is a number we publish and a condition you can test on a demo account before risking a cent.</p></div>
+    <div class="grid g3 tilt-wrap" id="whyGrid"></div>
+  </div>
+</section>
+
+<!-- ACCOUNTS -->
+<section class="block" id="accounts">
+  <div class="section">
+    <div class="sec-head reveal"><p class="eyebrow">Trading accounts</p><h2>Three accounts. One pricing philosophy.</h2>
+    <p>Whether you trade 0.01 lots or institutional size, the liquidity behind your fills is identical — only the cost structure changes.</p></div>
+    <div class="grid g3 tilt-wrap" id="acctGrid"></div>
+    <p class="reveal" style="margin-top:20px;text-align:center;font-size:12px;color:rgba(143,164,201,.7)">*Leverage varies by jurisdiction, instrument and account equity. Higher leverage increases risk.</p>
+  </div>
+</section>
+
+<!-- PLATFORMS -->
+<section class="block" id="platforms">
+  <div class="section">
+    <div class="sec-head reveal"><p class="eyebrow">Platforms</p><h2>Trade on the platforms professionals already trust</h2>
+    <p>One wallet, four front-ends. Run EAs on MetaTrader, scalp level II on cTrader, or analyse in the browser — all on the same raw liquidity.</p></div>
+    <div class="grid g4 tilt-wrap" id="platGrid"></div>
+  </div>
+</section>
+
+<!-- MARKETS -->
+<section class="block" id="markets">
+  <div class="section">
+    <div class="sec-head reveal"><p class="eyebrow">Markets</p><h2>2,000+ instruments across six asset classes</h2>
+    <p>From EURUSD at 0.0 to single-name US shares — one account, one margin pool, every major market.</p></div>
+    <div class="grid g3 tilt-wrap" id="mktGrid"></div>
+  </div>
+</section>
+
+<!-- FUNDING -->
+<section class="block" id="funding">
+  <div class="section">
+    <div class="sec-head reveal"><p class="eyebrow">Deposits &amp; withdrawals</p><h2>Your money moves at trading speed</h2>
+    <p>Zero deposit fees on every method. Withdrawals processed the same business day.</p></div>
+    <div class="glass reveal" style="overflow-x:auto;margin-top:48px">
+      <table style="width:100%;min-width:560px;border-collapse:collapse;font-size:14px;text-align:left">
+        <thead><tr style="border-bottom:1px solid rgba(233,240,252,.1)">
+          <th style="padding:16px 22px;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mist)">Method</th>
+          <th style="padding:16px 22px;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mist)">Processing</th>
+          <th style="padding:16px 22px;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mist)">Fee</th>
+          <th style="padding:16px 22px;font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--mist)">Notes</th>
+        </tr></thead><tbody id="fundRows"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- STEPS -->
+<section class="block">
+  <div class="section">
+    <div class="sec-head reveal"><p class="eyebrow">Getting started</p><h2>From sign-up to first trade in four steps</h2><p>Most clients go live the same day they apply.</p></div>
+    <div class="grid g4" id="stepGrid"></div>
+  </div>
+</section>
+
+<!-- PARTNER -->
+<section class="block" id="partners">
+  <div class="section"><div class="glass-strong partner reveal">
+    <div>
+      <p class="eyebrow">Partner program</p><h2>Earn from the order flow you introduce</h2>
+      <p>IBs, affiliates and regional partners earn lifetime rebates of up to $12 per lot, paid daily, with real-time tracking and a dedicated partner desk.</p>
+      <a href="/register" class="btn btn-primary" style="margin-top:26px">Become a Partner
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14m-6-6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg></a>
+    </div>
+    <ul class="feat" id="partnerFeat"></ul>
+  </div></div>
+</section>
+
+<!-- CTA -->
+<section class="section"><div class="glass-strong cta-band reveal">
+  <div class="blob1"></div><div class="blob2"></div>
+  <h2>Test our spreads before you trust them</h2>
+  <p>Open a free demo with live raw pricing, or go straight to a funded account in minutes. Either way, the numbers speak first.</p>
+  <div class="row"><a href="/register" class="btn btn-primary">Open Live Account</a><a href="/login" class="btn btn-ghost">Try Demo Account</a></div>
+</div></section>
+
+<!-- FOOTER -->
+<footer id="footer">
+  <div class="section foot-grid">
+    <div><div class="brand">
+      <svg viewBox="0 0 40 40" width="34" height="34" fill="none"><rect x="1.5" y="1.5" width="37" height="37" rx="10" stroke="url(#g1)" stroke-width="2"/><path d="M7 24c3.5 0 3.5-4 7-4s3.5 4 7 4 3.5-4 7-4 3.5 4 5 4" stroke="url(#g1)" stroke-width="2.2" stroke-linecap="round"/><path d="M20 8v6M20 26v6" stroke="#E9F0FC" stroke-width="2.2" stroke-linecap="round"/><rect x="16.6" y="13" width="6.8" height="14" rx="1.6" fill="url(#g1)"/></svg>
+      Tidemark<span class="dot">.</span>Markets</div>
+      <p class="about">Trade the deep end of the market. Raw pricing, deep liquidity and institutional execution for traders who measure everything.</p></div>
+    <nav><h4>Trading</h4><ul><li><a href="#accounts">Accounts</a></li><li><a href="#platforms">Platforms</a></li><li><a href="#markets">Markets</a></li><li><a href="#funding">Spreads &amp; Pricing</a></li></ul></nav>
+    <nav><h4>Company</h4><ul><li><a href="#">About Us</a></li><li><a href="#partners">Partner Program</a></li><li><a href="#">Contact</a></li><li><a href="#">Client Portal</a></li></ul></nav>
+    <nav><h4>Funding</h4><ul><li><a href="#funding">Deposits &amp; Withdrawals</a></li><li><a href="#">Open Live Account</a></li><li><a href="#">Try Demo Account</a></li></ul></nav>
+  </div>
+  <div class="risk"><div class="section"><h4>Risk Warning</h4>
+    <p>Trading Forex and CFDs involves significant risk and may not be suitable for all investors. You may lose more than your initial investment. Leveraged products magnify both gains and losses. Past performance is not a reliable indicator of future results. Please ensure you fully understand the risks involved and seek independent advice if necessary.</p>
+    <p class="copy">© 2026 Tidemark Markets. Demonstration website — all figures shown are illustrative.</p></div></div>
+</footer>
+
+</div><!-- /content -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =========================================================
+   3D WEBGL SCENE — "Candlestick City"
+   A grid of animated price bars on a glowing floor, with
+   drifting liquidity particles, fog depth, parallax camera.
+   ========================================================= */
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let renderer, scene, camera, clock, bars=[], particles, gridFloor, group;
+const mouse={x:0,y:0,tx:0,ty:0};
+let scrollT=0;
+
+function init3D(){
+  if(typeof THREE==='undefined'){document.getElementById('bg-canvas').style.background='radial-gradient(ellipse at 50% 20%,#0d2a6b,#04091a 70%)';return;}
+  const canvas=document.getElementById('bg-canvas');
+  renderer=new THREE.WebGLRenderer({canvas,antialias:true,alpha:true,powerPreference:'high-performance'});
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.setSize(innerWidth,innerHeight);
+
+  scene=new THREE.Scene();
+  scene.fog=new THREE.FogExp2(0x04091a,0.055);
+
+  camera=new THREE.PerspectiveCamera(58,innerWidth/innerHeight,0.1,120);
+  camera.position.set(0,7.5,20);
+  camera.lookAt(0,2,0);
+
+  group=new THREE.Group();scene.add(group);
+
+  // lights
+  scene.add(new THREE.AmbientLight(0x2a4a8a,0.7));
+  const key=new THREE.PointLight(0x38e1ff,2.2,80);key.position.set(-8,16,12);scene.add(key);
+  const fill=new THREE.PointLight(0x1059d6,1.6,80);fill.position.set(12,10,-6);scene.add(fill);
+  const rim=new THREE.PointLight(0x2ee6a8,1.0,60);rim.position.set(0,4,-18);scene.add(rim);
+
+  // glowing grid floor
+  gridFloor=new THREE.GridHelper(120,60,0x38e1ff,0x10337e);
+  gridFloor.material.transparent=true;gridFloor.material.opacity=0.22;
+  gridFloor.position.y=-0.5;group.add(gridFloor);
+
+  // candlestick city
+  const COLS=22, ROWS=10, gap=2.0;
+  const upMat=new THREE.MeshStandardMaterial({color:0x2ee6a8,emissive:0x0e6b4c,emissiveIntensity:0.5,roughness:0.35,metalness:0.4});
+  const dnMat=new THREE.MeshStandardMaterial({color:0xff5c7a,emissive:0x6b1f30,emissiveIntensity:0.5,roughness:0.35,metalness:0.4});
+  const geo=new THREE.BoxGeometry(0.85,1,0.85);
+  for(let r=0;r<ROWS;r++){
+    for(let c=0;c<COLS;c++){
+      const up=Math.random()>0.46;
+      const m=new THREE.Mesh(geo,up?upMat:dnMat);
+      const x=(c-(COLS-1)/2)*gap;
+      const z=(r-(ROWS-1)/2)*gap - 6;
+      m.position.set(x,0,z);
+      m.userData={phase:Math.random()*Math.PI*2,speed:0.4+Math.random()*0.9,base:0.6+Math.random()*0.6,amp:0.8+Math.random()*2.4,col:c};
+      group.add(m);bars.push(m);
+    }
+  }
+
+  // liquidity particle field
+  const pCount=reduceMotion?180:520;
+  const pGeo=new THREE.BufferGeometry();
+  const pos=new Float32Array(pCount*3);
+  for(let i=0;i<pCount;i++){pos[i*3]=(Math.random()-0.5)*70;pos[i*3+1]=Math.random()*22;pos[i*3+2]=(Math.random()-0.5)*60-6;}
+  pGeo.setAttribute('position',new THREE.BufferAttribute(pos,3));
+  const pMat=new THREE.PointsMaterial({color:0x9cd8ff,size:0.13,transparent:true,opacity:0.6,depthWrite:false,blending:THREE.AdditiveBlending});
+  particles=new THREE.Points(pGeo,pMat);scene.add(particles);
+
+  clock=new THREE.Clock();
+  addEventListener('resize',onResize);
+  addEventListener('pointermove',onPointer,{passive:true});
+  addEventListener('scroll',()=>{scrollT=scrollY;},{passive:true});
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!reduceMotion)animate();});
+  animate();
+}
+function onResize(){if(!renderer)return;camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);}
+function onPointer(e){mouse.tx=(e.clientX/innerWidth-0.5);mouse.ty=(e.clientY/innerHeight-0.5);}
+
+let running=false;
+function animate(){
+  if(document.hidden){running=false;return;}
+  running=true;requestAnimationFrame(animate);
+  const t=clock.getElapsedTime();
+
+  // animate candle heights (price action wave)
+  for(const b of bars){
+    const u=b.userData;
+    const h=u.base+Math.abs(Math.sin(t*u.speed+u.phase)+Math.sin(t*0.5+u.col*0.4))*u.amp;
+    b.scale.y=h;b.position.y=h/2-0.5;
+  }
+
+  // drift particles upward (liquidity rising)
+  const pa=particles.geometry.attributes.position;
+  for(let i=0;i<pa.count;i++){
+    let y=pa.getY(i)+0.018;if(y>22)y=0;pa.setY(i,y);
+  }
+  pa.needsUpdate=true;
+  particles.rotation.y=t*0.02;
+
+  // gentle auto-orbit + mouse parallax + scroll tilt
+  mouse.x+=(mouse.tx-mouse.x)*0.05;mouse.y+=(mouse.ty-mouse.y)*0.05;
+  const sn=Math.min(scrollT/1200,1);
+  camera.position.x=Math.sin(t*0.08)*3 + mouse.x*6;
+  camera.position.y=7.5 - mouse.y*3 + sn*4;
+  camera.position.z=20 - sn*5;
+  camera.lookAt(0,2 - sn*1.5,-4);
+  group.rotation.y=Math.sin(t*0.05)*0.06 + mouse.x*0.15;
+
+  renderer.render(scene,camera);
+}
+
+if(!reduceMotion){init3D();}else{
+  // static fallback gradient
+  const c=document.getElementById('bg-canvas');c.style.background='radial-gradient(ellipse at 50% 15%,#0d2a6b,#04091a 70%)';
+}
+
+/* ---------- UI: nav, reveal, ticker, prices, content ---------- */
+const topbar=document.getElementById('topbar');
+addEventListener('scroll',()=>topbar.classList.toggle('scrolled',scrollY>12),{passive:true});
+const burger=document.getElementById('hamburger'),menu=document.getElementById('mobileMenu');
+burger.onclick=()=>{const o=menu.classList.toggle('open');burger.setAttribute('aria-expanded',o)};
+menu.onclick=e=>{if(e.target.tagName==='A')menu.classList.remove('open')};
+
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('is-visible');io.unobserve(e.target)}}),{threshold:.15,rootMargin:'0px 0px -40px 0px'});
+function observe(){document.querySelectorAll('.reveal:not(.is-visible)').forEach(el=>io.observe(el))}
+
+const TICKS=[['EURUSD',1.08423,5,0.14],['GBPUSD',1.27184,5,-0.08],['USDJPY',154.213,3,0.22],['XAUUSD',2384.5,2,0.41],['US500',5512.4,1,-0.19],['BTCUSD',67410,0,1.32],['USOIL',78.64,2,-0.55],['AUDUSD',0.66412,5,0.05]];
+const tape=document.getElementById('tape');
+const tapeRow=()=>'<ul>'+TICKS.map(([s,p,d,c])=>`<li><strong>${s}</strong><span style="color:var(--mist)">${p.toLocaleString('en-US',{minimumFractionDigits:d,maximumFractionDigits:d})}</span><span class="${c>=0?'up':'down'}">${c>=0?'▲':'▼'} ${Math.abs(c).toFixed(2)}%</span></li>`).join('')+'</ul>';
+const renderTape=()=>tape.innerHTML=tapeRow()+tapeRow();
+renderTape();setInterval(()=>{TICKS.forEach(t=>{const dr=(Math.random()-.5)*.0009;t[1]*=1+dr;t[3]+=dr*100});renderTape()},2000);
+
+let eur=1.08423,gold=2384.6,btc=67410;
+setInterval(()=>{
+  eur=+(eur+(Math.random()-.5)*.0004).toFixed(5);gold=+(gold+(Math.random()-.5)*1.6).toFixed(1);btc=Math.round(btc+(Math.random()-.5)*60);
+  document.getElementById('pxEur').textContent=eur.toFixed(5);
+  document.getElementById('pxGold').textContent=gold.toLocaleString('en-US',{minimumFractionDigits:1});
+  document.getElementById('pxBtc').textContent=btc.toLocaleString('en-US');
+},1500);
+
+// HUD parallax
+addEventListener('pointermove',e=>{
+  const dx=(e.clientX/innerWidth-0.5),dy=(e.clientY/innerHeight-0.5);
+  [['hud1',26],['hud2',-32],['hud3',20]].forEach(([id,k])=>{const el=document.getElementById(id);if(el)el.style.transform=`translate(${dx*k}px,${dy*k}px)`;});
+},{passive:true});
+
+const ICONS={
+ spread:'<path d="M3 12h18" stroke-linecap="round"/><path d="M7 8l-4 4 4 4M17 8l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/>',
+ speed:'<path d="M13 3L4 14h6l-1 7 9-11h-6l1-7z" stroke-linejoin="round"/>',
+ depth:'<path d="M4 6h16M6 10h12M8 14h8M10 18h4" stroke-linecap="round"/>',
+ shield:'<path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6l7-3z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>',
+ withdraw:'<rect x="3" y="7" width="18" height="12" rx="2.5"/><path d="M3 11h18M12 15h.01" stroke-linecap="round"/><path d="M8 4h8" stroke-linecap="round"/>',
+ support:'<path d="M4 13a8 8 0 1116 0" stroke-linecap="round"/><rect x="3" y="13" width="4" height="6" rx="1.6"/><rect x="17" y="13" width="4" height="6" rx="1.6"/><path d="M19 19a3 3 0 01-3 3h-3" stroke-linecap="round"/>'};
+const icon=k=>`<span class="icon-chip"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6">${ICONS[k]}</svg></span>`;
+const CHECK='<svg class="check" viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+const WHY=[['spread','Raw pricing, honestly priced','Spreads from 0.0 pips with a transparent fixed commission. No markups hiding in your fills.'],['speed','Execution in milliseconds','Orders route through co-located servers beside our liquidity hubs. Average execution under 40 ms.'],['depth','Deep, aggregated liquidity','Pricing streamed from 25+ bank and non-bank providers means tighter books and real size at the touch.'],['shield','Your funds, ring-fenced','Client money is held in segregated accounts at tier-1 banks, separate from company funds at all times.'],['withdraw','Withdraw without friction','Same-day withdrawal processing as standard. Your profits move as fast as your trades do.'],['support','Support that trades too','A 24/7 multilingual desk staffed by people who understand margin, swaps and slippage.']];
+document.getElementById('whyGrid').innerHTML=WHY.map((w,i)=>`<div class="glass card3d reveal" style="--d:${(i%3)*110}ms" data-tilt><span class="shine"></span><div class="lift">${icon(w[0])}<h3>${w[1]}</h3><p>${w[2]}</p></div></div>`).join('');
+
+const ACCTS=[{n:'Standard',st:'All-in pricing, zero commission',sp:'From 0.8 pips',cm:'None',md:'$100',lev:'Up to 1:500*',pf:'MT4 · MT5 · Web',best:'Discretionary traders who want simple, predictable costs',f:['Commission built into the spread','All 2,000+ instruments','Micro lots from 0.01','Free funding on all methods']},{n:'Raw Spread',st:'Interbank pricing, fixed commission',sp:'From 0.0 pips',cm:'$3 per lot / side',md:'$200',lev:'Up to 1:500*',pf:'MT4 · MT5 · cTrader',pop:1,best:'Scalpers, algos and EAs that live on tight spreads',f:['Top-of-book from 25+ providers','No dealing desk, no requotes','Depth-of-market visibility','VPS credit for active accounts']},{n:'Pro / VIP',st:'Institutional terms for size',sp:'From 0.0 pips',cm:'From $2 / side',md:'$25,000',lev:'Custom',pf:'MT5 · cTrader · FIX',best:'Funds, prop desks and high-volume individuals',f:['Tiered commission, falls with volume','Dedicated relationship manager','Priority same-day withdrawals','Bespoke margin & FIX API']}];
+document.getElementById('acctGrid').innerHTML=ACCTS.map((a,i)=>`<div class="${a.pop?'glass-strong featured':'glass'} acct reveal" style="--d:${i*120}ms" data-tilt><span class="shine"></span>${a.pop?'<span class="pop">Most popular</span>':''}<h3 style="font-size:20px">${a.n}</h3><p class="strap">${a.st}</p><p class="spread">${a.sp}</p><p class="comm">Commission: ${a.cm}</p><dl><div><dt>Minimum deposit</dt><dd>${a.md}</dd></div><div><dt>Leverage</dt><dd>${a.lev}</dd></div><div><dt>Platforms</dt><dd>${a.pf}</dd></div></dl><ul>${a.f.map(x=>`<li>${CHECK}${x}</li>`).join('')}</ul><p class="best">Best for: ${a.best}</p><a href="#" class="btn ${a.pop?'btn-primary':'btn-ghost'}">Open ${a.n} Account</a></div>`).join('');
+
+const PLATS=[['MetaTrader 4','The workhorse of retail FX',['EA automation','Mobile & web','Free VPS']],['MetaTrader 5','More markets & depth',['DOM ladder','21 timeframes','MQL5 ecosystem']],['cTrader','Built for precision',['Level II depth','cBots in C#','Detachable charts']],['Web Charting','TradingView-style suite',['100+ indicators','Trade from chart','Any device']]];
+document.getElementById('platGrid').innerHTML=PLATS.map((p,i)=>`<div class="glass card3d reveal" style="--d:${(i%4)*100}ms" data-tilt><span class="shine"></span><div class="lift"><h3 style="font-size:17px">${p[0]}</h3><p>${p[1]}</p><ul style="margin-top:14px">${p[2].map(x=>`<li style="display:flex;gap:8px;font-size:13px;color:rgba(233,240,252,.85);margin-bottom:7px">${CHECK}${x}</li>`).join('')}</ul></div></div>`).join('');
+
+const MKTS=[['Forex','60+ pairs','Majors, minors & exotics at raw interbank pricing.',[['EURUSD','0.0–0.1'],['GBPUSD','0.1–0.3'],['USDJPY','0.0–0.2']]],['Commodities','25+ markets','Gold, silver, energies & softs.',[['XAUUSD','from 0.8¢'],['USOIL','from 2.5¢'],['XAGUSD','from 1.2¢']]],['Indices','25 indices','Cash & futures index CFDs worldwide.',[['US500','from 0.2'],['GER40','from 0.5'],['JPN225','from 4.0']]],['Crypto CFDs','20+ coins','Long or short, 24/7, no wallet.',[['BTCUSD','from $12'],['ETHUSD','from $0.9'],['SOLUSD','from $0.05']]],['Share CFDs','1,800+ shares','US, UK, EU & AU names, live pricing.',[['AAPL','from 1.4¢'],['TSLA','from 2.0¢'],['NVDA','from 2.2¢']]],['Bonds & Futures','10+ markets','Rates exposure for macro positioning.',[['US10Y','from 0.02'],['BUND','from 0.02'],['GILT','from 0.03']]]];
+document.getElementById('mktGrid').innerHTML=MKTS.map((m,i)=>`<a href="#" class="glass mkt reveal" style="--d:${(i%3)*100}ms" data-tilt><span class="shine"></span><div class="row"><h3 style="font-size:18px">${m[0]}</h3><span class="count">${m[1]}</span></div><p>${m[2]}</p><ul>${m[3].map(e=>`<li><span>${e[0]}</span><span>${e[1]}</span></li>`).join('')}</ul></a>`).join('');
+
+const FUND=[['Bank Wire','Same day – 1 business day','Free','All major currencies'],['Visa / Mastercard','Instant','Free','3-D Secure protected'],['UPI / Local Transfer','Instant','Free','Selected regions'],['Skrill / Neteller','Instant','Free','E-wallet'],['Crypto (USDT, BTC)','1–3 confirmations','Free','Network fee may apply'],['Online Banking','Instant – 1 hour','Free','Regional rails']];
+document.getElementById('fundRows').innerHTML=FUND.map(f=>`<tr style="border-bottom:1px solid rgba(233,240,252,.05)"><td style="padding:15px 22px;font-weight:500">${f[0]}</td><td style="padding:15px 22px;color:var(--mist)">${f[1]}</td><td style="padding:15px 22px;font-family:var(--mono);color:var(--kelp)">${f[2]}</td><td style="padding:15px 22px;color:var(--mist)">${f[3]}</td></tr>`).join('');
+
+const STEPS=[['Register','Create your secure client portal in under five minutes.'],['Verify','Upload ID and proof of address. Most approved same day.'],['Fund','Deposit instantly by card, wire, e-wallet or crypto. No fees.'],['Trade','Download your platform and access 2,000+ markets at raw pricing.']];
+document.getElementById('stepGrid').innerHTML=STEPS.map((s,i)=>`<div class="glass step reveal" style="--d:${i*130}ms"><span class="n">STEP ${i+1} / 4</span><h3>${s[0]}</h3><p>${s[1]}</p></div>`).join('');
+
+const PFEAT=['Daily rebate payouts, no thresholds','Real-time attribution dashboard','Multi-tier sub-IB structures','Marketing assets in 12 languages'];
+document.getElementById('partnerFeat').innerHTML=PFEAT.map(t=>`<li class="glass">${CHECK}${t}</li>`).join('');
+
+/* ---------- 3D mouse-tilt on cards ---------- */
+function bindTilt(){
+  document.querySelectorAll('[data-tilt]').forEach(card=>{
+    card.addEventListener('pointermove',e=>{
+      const r=card.getBoundingClientRect();
+      const px=(e.clientX-r.left)/r.width, py=(e.clientY-r.top)/r.height;
+      const rx=(0.5-py)*10, ry=(px-0.5)*12;
+      card.style.transform=`perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(6px)`;
+      card.style.setProperty('--mx',px*100+'%');card.style.setProperty('--my',py*100+'%');
+    });
+    card.addEventListener('pointerleave',()=>{card.style.transform='perspective(900px) rotateX(0) rotateY(0)';});
+  });
+}
+observe();bindTilt();
+</script>
+</body>
+</html>

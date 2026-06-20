@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../nginx"
+		},
+		{
+			"path": "."
+		},
+		{
+			"path": "../frontend"
+		}
+	]
+}
