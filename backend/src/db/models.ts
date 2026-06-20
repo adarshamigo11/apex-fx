@@ -169,10 +169,17 @@ export interface TradeHistoryDoc {
 }
 
 export interface KycDocument {
-  type: string;
-  url: string;
+  type: 'identity' | 'address' | 'selfie' | 'bank_statement' | 'utility_bill' | 'tax_id' | 'other';
+  fileName: string;
+  fileUrl: string;
+  url?: string; // backward compat
+  fileSize: number;
+  mimeType: string;
   uploadedAt: Date;
   status?: 'PENDING' | 'APPROVED' | 'REJECTED';
+  docId?: string;
+  rejectionReason?: string;
+  ocrData?: Record<string, any>;
 }
 
 export interface KycSubmissionHistory {
@@ -184,11 +191,15 @@ export interface KycSubmissionHistory {
 
 export interface KycDoc {
   _id?: ObjectId; userId: ObjectId;
-  fullName: string; country: string; documentType: string; documentNumber: string;
+  fullName: string; dateOfBirth?: string; country: string; city?: string;
+  address?: string; postalCode?: string; phone?: string;
+  documentType: string; documentNumber: string;
   status: KycStatus; reviewedBy?: ObjectId | null; reviewNote?: string;
   requestedDocs?: string[];
+  requestedDocTypes?: string[];
   documents?: KycDocument[];
   submissionHistory?: KycSubmissionHistory[];
+  verificationLevel?: 'NONE' | 'BASIC' | 'ADVANCED' | 'PREMIUM';
   createdAt: Date; updatedAt: Date;
 }
 
