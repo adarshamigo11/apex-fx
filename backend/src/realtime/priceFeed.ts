@@ -62,7 +62,34 @@ export function startPriceFeed(io: Server, intervalMs = 1000) {
           source = 'finnhub';
         }
 
-        // Priority 2: Twelve Data REST (rate-limited: every 30s per symbol)
+        // Priority 2: FCS API for forex/commodities (rate-limited: every 30s)
+        if (rawPrice === null && spec.source === 'fcsapi') {
+          const now = Date.now();
+          const last = lastFetch[spec.name] ?? 0;
+
+          if (now - last >= TWELVE_POLL_INTERVAL) {
+            try {
+              const raw = await fetchQuote(spec.name);
+              rawPrice = raw.price;
+              ts = raw.ts;
+              source = 'fcsapi';
+              priceCache.set(spec.name, { price: raw.price, ts: raw.ts, source });
+              lastFetch[spec.name] = now;
+            } catch { /* fcsapi failed, use cache */ }
+          }
+
+          // Use cached price between polls
+          if (rawPrice === null) {
+            const cached = priceCache.get(spec.name);
+            if (cached && (now - cached.ts) < CACHE_TTL_MS) {
+              rawPrice = cached.price;
+              ts = cached.ts;
+              source = cached.source;
+            }
+          }
+        }
+
+        // Priority 3: Twelve Data REST (rate-limited: every 30s per symbol)
         if (rawPrice === null && spec.source === 'twelvedata') {
           const now = Date.now();
           const last = lastFetch[spec.name] ?? 0;

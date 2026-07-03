@@ -16,6 +16,7 @@ export const env = {
   REFRESH_TTL_DAYS: parseInt(process.env.REFRESH_TTL_DAYS ?? '7', 10),
   TWELVE_DATA_API_KEY: process.env.TWELVE_DATA_API_KEY ?? '',
   FINNHUB_API_KEY: process.env.FINNHUB_API_KEY ?? '',
+  FCS_API_KEY: process.env.FCS_API_KEY ?? '',
   S3_ENDPOINT: process.env.S3_ENDPOINT ?? '',
   S3_BUCKET: process.env.S3_BUCKET ?? 'kyc-uploads',
   S3_ACCESS_KEY: process.env.S3_ACCESS_KEY ?? '',

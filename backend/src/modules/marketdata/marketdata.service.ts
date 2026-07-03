@@ -1,7 +1,7 @@
 // ============================================================================
 //  marketdata.service.ts
-//  Binance (crypto) + Twelve Data + Yahoo Finance (free, no key) with MOCK fallback.
-//  Priority: Binance/TwelveData → Yahoo Finance (always free) → Mock random-walk.
+//  FCS API (forex/commodities) + Binance (crypto) + Yahoo Finance (free) with MOCK fallback.
+//  Priority: FCS API → Binance → Yahoo Finance (always free) → Mock random-walk.
 // ============================================================================
 import { DEFAULT_SYMBOLS, MOCK_PRICES } from './symbols';
 import { env } from '../../config/env';
@@ -14,6 +14,112 @@ const TF_MS: Record<string, number> = {
 };
 
 const lastPrice: Record<string, number> = { ...MOCK_PRICES };
+
+// ---- FCS API batch quote cache (free tier: 3 req/min) -----------------------
+// Batch all forex symbols in one request, cache results for 30s
+const fcsCache: Record<string, { price: number; ts: number }> = {};
+let fcsBatchLastFetch = 0;
+const FCS_BATCH_INTERVAL = 25_000; // fetch batch every 25s (stays within 3/min)
+
+async function fetchFcsBatch(): Promise<void> {
+  if (!env.FCS_API_KEY) return;
+  const now = Date.now();
+  if (now - fcsBatchLastFetch < FCS_BATCH_INTERVAL) return;
+  fcsBatchLastFetch = now;
+  try {
+    // Batch forex symbols in one call
+    const forexSymbols = DEFAULT_SYMBOLS.filter(s => s.source === 'fcsapi' && s.kind !== 'METAL').map(s => s.externalSymbol).join(',');
+    if (forexSymbols) {
+      const url = `https://api-v4.fcsapi.com/forex/latest?symbol=${forexSymbols}&access_key=${env.FCS_API_KEY}`;
+      const r = await fetch(url);
+      if (r.ok) {
+        const j: any = await r.json();
+        if (j.status !== false && j.response) {
+          const items = Array.isArray(j.response) ? j.response : [j.response];
+          for (const item of items) {
+            const ticker = item?.profile?.symbol || item?.ticker;
+            const price = parseFloat(item?.active?.c || item?.c || '0');
+            if (ticker && price > 0) {
+              // Map back to our symbol name
+              const spec = DEFAULT_SYMBOLS.find(s => s.externalSymbol === ticker);
+              if (spec) fcsCache[spec.name] = { price, ts: now };
+            }
+          }
+        }
+      }
+    }
+    // Separate call for commodities (gold)
+    const commoditySymbols = DEFAULT_SYMBOLS.filter(s => s.source === 'fcsapi' && s.kind === 'METAL').map(s => s.externalSymbol).join(',');
+    if (commoditySymbols) {
+      const url = `https://api-v4.fcsapi.com/forex/latest?symbol=${commoditySymbols}&type=commodity&access_key=${env.FCS_API_KEY}`;
+      const r = await fetch(url);
+      if (r.ok) {
+        const j: any = await r.json();
+        if (j.status !== false && j.response) {
+          const items = Array.isArray(j.response) ? j.response : [j.response];
+          for (const item of items) {
+            const ticker = item?.profile?.symbol || item?.ticker;
+            const price = parseFloat(item?.active?.c || item?.c || '0');
+            if (ticker && price > 0) {
+              const spec = DEFAULT_SYMBOLS.find(s => s.externalSymbol === ticker);
+              if (spec) fcsCache[spec.name] = { price, ts: now };
+            }
+          }
+        }
+      }
+    }
+  } catch { /* batch fetch failed */ }
+}
+
+async function fetchFcsApiQuote(symbolName: string, externalSymbol: string): Promise<{ price: number; ts: number } | null> {
+  if (!env.FCS_API_KEY) return null;
+  // Trigger batch fetch (rate-limited internally)
+  await fetchFcsBatch();
+  // Return from cache
+  const cached = fcsCache[symbolName];
+  if (cached && (Date.now() - cached.ts) < 60_000) return cached;
+  return null;
+}
+
+// ---- FCS API candles (history) ----------------------------------------------
+async function fetchFcsApiCandles(externalSymbol: string, timeframe: string, limit: number, isCommodity: boolean): Promise<OHLC[] | null> {
+  if (!env.FCS_API_KEY) return null;
+  try {
+    const periodMap: Record<string, string> = {
+      M1: '1m', M5: '5m', M15: '15m', H1: '1h', H4: '4h', D1: '1D',
+    };
+    const period = periodMap[timeframe] ?? '1h';
+    const type = isCommodity ? '&type=commodity' : '';
+    const url = `https://api-v4.fcsapi.com/forex/history?symbol=${externalSymbol}&period=${period}&length=${limit}${type}&access_key=${env.FCS_API_KEY}`;
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const j: any = await r.json();
+    const data = j.response;
+    if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) return null;
+    // History response is object keyed by timestamp or array
+    const candles: OHLC[] = [];
+    if (Array.isArray(data)) {
+      for (const c of data) {
+        candles.push({
+          time: parseInt(c.t) || Math.floor(Date.now() / 1000),
+          open: parseFloat(c.o), high: parseFloat(c.h),
+          low: parseFloat(c.l), close: parseFloat(c.c),
+        });
+      }
+    } else {
+      // Object keyed by timestamp
+      for (const [key, c] of Object.entries(data) as [string, any][]) {
+        candles.push({
+          time: parseInt(c.t || key),
+          open: parseFloat(c.o), high: parseFloat(c.h),
+          low: parseFloat(c.l), close: parseFloat(c.c),
+        });
+      }
+    }
+    if (candles.length > 0) return candles.slice(-limit);
+  } catch { /* fall through */ }
+  return null;
+}
 
 // Yahoo Finance symbol map — free, no API key required
 const YAHOO_SYMBOL_MAP: Record<string, string> = {
@@ -100,12 +206,17 @@ export async function fetchQuote(symbolName: string): Promise<RawQuote> {
   const spec = DEFAULT_SYMBOLS.find((s) => s.name === symbolName);
   if (!spec) throw new Error(`unknown symbol ${symbolName}`);
   try {
-    // 1) Binance for crypto (always free)
+    // 1) FCS API for forex/commodities (primary source)
+    if (spec.source === 'fcsapi') {
+      const fcs = await fetchFcsApiQuote(symbolName, spec.externalSymbol);
+      if (fcs) { lastPrice[symbolName] = fcs.price; return { symbol: symbolName, price: fcs.price, ts: fcs.ts }; }
+    }
+    // 2) Binance for crypto (always free)
     if (spec.source === 'binance') {
       const r = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${spec.externalSymbol}`);
       if (r.ok) { const j: any = await r.json(); const p = parseFloat(j.price); lastPrice[symbolName] = p; return { symbol: symbolName, price: p, ts: Date.now() }; }
     }
-    // 2) Twelve Data for forex/gold/indices (rate-limited free tier)
+    // 3) Twelve Data for indices (rate-limited free tier)
     if (spec.source === 'twelvedata' && env.TWELVE_DATA_API_KEY) {
       const r = await fetch(`https://api.twelvedata.com/price?symbol=${encodeURIComponent(spec.externalSymbol)}&apikey=${env.TWELVE_DATA_API_KEY}`);
       if (r.ok) {
@@ -113,7 +224,7 @@ export async function fetchQuote(symbolName: string): Promise<RawQuote> {
         if (j.price && !j.code) { const p = parseFloat(j.price); lastPrice[symbolName] = p; return { symbol: symbolName, price: p, ts: Date.now() }; }
       }
     }
-    // 3) Yahoo Finance — free, no key, works for all symbols
+    // 4) Yahoo Finance — free, no key, works for all symbols
     const yahoo = await fetchYahooQuote(symbolName);
     if (yahoo) { lastPrice[symbolName] = yahoo.price; return { symbol: symbolName, price: yahoo.price, ts: yahoo.ts }; }
   } catch (e) { /* fall through to mock */ }
@@ -125,19 +236,25 @@ export async function fetchCandles(symbolName: string, timeframe: string, limit 
   const spec = DEFAULT_SYMBOLS.find((s) => s.name === symbolName);
   if (!spec) throw new Error(`unknown symbol ${symbolName}`);
   try {
-    // 1) Binance for crypto
+    // 1) FCS API for forex/commodities
+    if (spec.source === 'fcsapi') {
+      const isCommodity = spec.kind === 'METAL';
+      const fcs = await fetchFcsApiCandles(spec.externalSymbol, timeframe, limit, isCommodity);
+      if (fcs && fcs.length > 0) return fcs;
+    }
+    // 2) Binance for crypto
     if (spec.source === 'binance') {
       const map: Record<string, string> = { M1:'1m',M5:'5m',M15:'15m',H1:'1h',H4:'4h',D1:'1d' };
       const r = await fetch(`https://api.binance.com/api/v3/klines?symbol=${spec.externalSymbol}&interval=${map[timeframe]}&limit=${limit}`);
       if (r.ok) { const rows: any[] = await r.json(); return rows.map((k) => ({ time: Math.floor(k[0]/1000), open:+k[1], high:+k[2], low:+k[3], close:+k[4] })); }
     }
-    // 2) Twelve Data for forex/gold/indices
+    // 3) Twelve Data for indices
     if (spec.source === 'twelvedata' && env.TWELVE_DATA_API_KEY) {
       const map: Record<string,string> = { M1:'1min',M5:'5min',M15:'15min',H1:'1h',H4:'4h',D1:'1day' };
       const r = await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(spec.externalSymbol)}&interval=${map[timeframe]}&outputsize=${limit}&apikey=${env.TWELVE_DATA_API_KEY}`);
       if (r.ok) { const j: any = await r.json(); if (Array.isArray(j.values) && !j.code) return j.values.map((v: any) => ({ time: Math.floor(new Date(v.datetime).getTime()/1000), open:+v.open, high:+v.high, low:+v.low, close:+v.close })).reverse(); }
     }
-    // 3) Yahoo Finance candles — free, no key
+    // 4) Yahoo Finance candles — free, no key
     const yahoo = await fetchYahooCandles(symbolName, timeframe, limit);
     if (yahoo && yahoo.length > 0) return yahoo;
   } catch (e) { /* fall through */ }
