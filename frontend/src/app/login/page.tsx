@@ -113,12 +113,9 @@ export default function LoginPage() {
           </button>
 
           {/* Links */}
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex items-center justify-center pt-2">
             <a href="/register" className="text-xs text-muted hover:text-[#39ff8b] transition-colors">
               Create Account
-            </a>
-            <a href="/admin/login" className="text-xs text-muted hover:text-[var(--text)] transition-colors">
-              Admin Portal
             </a>
           </div>
         </form>
