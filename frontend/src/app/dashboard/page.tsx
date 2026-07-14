@@ -100,11 +100,15 @@ export default function DashboardPage() {
     appApi.liveAccountTypes().then(setLiveAccountTypes).catch(() => {});
   }, []);
 
-  // ── fetch snapshot + positions + analytics ─────────────────────────
+  // ── fetch snapshot + positions + analytics + refresh accounts ───────
   const refreshData = useCallback(() => {
     if (!activeAccountId) return;
     appApi.trading.snapshot(activeAccountId).then((s: Snapshot) => setSnapshot(s)).catch(() => {});
     appApi.trading.analytics(activeAccountId).then((a: Analytics) => setAnalytics(a)).catch(() => {});
+    // Re-fetch accounts to catch status changes (e.g. admin approval)
+    appApi.accounts().then((a: Account[]) => {
+      setAccounts(a);
+    }).catch(() => {});
   }, [activeAccountId]);
 
   useEffect(() => { refreshData(); const id = setInterval(refreshData, 5000); return () => clearInterval(id); }, [refreshData]);

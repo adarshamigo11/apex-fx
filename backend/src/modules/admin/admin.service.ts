@@ -1039,6 +1039,14 @@ export async function activateTradingAccount(actorId: string, accountId: string)
     { $set: { status: 'ACTIVE', updatedAt: new Date() } },
   );
 
+  // Also activate the user if they were PENDING
+  if (account.userId) {
+    await col(COL.users).updateOne(
+      { _id: account.userId, status: 'PENDING' },
+      { $set: { status: 'ACTIVE', updatedAt: new Date() } },
+    );
+  }
+
   await logAction(actorId, 'trading_account.activate', 'trading_account', accountId, {
     login: account.login,
     previousStatus: account.status,
