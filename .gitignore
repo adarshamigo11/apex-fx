@@ -1,0 +1,6 @@
+.vercel
+.env*
+
+.vercel-tmp
+.env.prod
+.env.vercel
