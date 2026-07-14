@@ -11,6 +11,7 @@ import { appApi } from '../../lib/appApi';
 interface Account { _id: string; login: string; type: string; balance: number; currency: string; leverage: number; accountCategory?: string; accountType?: string; status?: string; server?: string; }
 interface Position { _id: string; ticket: number; symbolName: string; side: 'BUY' | 'SELL'; lots: number; openPrice: number; marginUsed: number; commission: number; swap: number; stopLoss?: number | null; takeProfit?: number | null; openTime: string; }
 interface Snapshot { balance: number; equity: number; usedMargin: number; freeMargin: number; marginLevel: number; floatingPnL: number; }
+interface Analytics { totalTrades: number; winningTrades: number; losingTrades: number; winRate: number; profitFactor: number; netProfit: number; equityCurve: { _id: string; dayPnL: number }[]; }
 
 const SYMBOLS = ['XAUUSD', 'EURUSD', 'GBPUSD', 'USDJPY', 'US30', 'NAS100', 'BTCUSD'];
 const TIMEFRAMES = ['M1', 'M5', 'M15', 'H1', 'H4', 'D1'];
@@ -78,6 +79,9 @@ export default function DashboardPage() {
   const [upgradeType, setUpgradeType] = useState<any>(null);
   const [upgrading, setUpgrading] = useState(false);
 
+  // trading analytics
+  const [analytics, setAnalytics] = useState<Analytics | null>(null);
+
   // ── init: auth guard + load data ──────────────────────────────────
   useEffect(() => {
     appApi.loadTokens();
@@ -96,12 +100,11 @@ export default function DashboardPage() {
     appApi.liveAccountTypes().then(setLiveAccountTypes).catch(() => {});
   }, []);
 
-  // ── fetch snapshot + positions ─────────────────────────────────────
+  // ── fetch snapshot + positions + analytics ─────────────────────────
   const refreshData = useCallback(() => {
     if (!activeAccountId) return;
     appApi.trading.snapshot(activeAccountId).then((s: Snapshot) => setSnapshot(s)).catch(() => {});
-    // fetch open positions via snapshot enrichment — we need a dedicated endpoint
-    // For now, use the accounts/:id/snapshot response which includes position details
+    appApi.trading.analytics(activeAccountId).then((a: Analytics) => setAnalytics(a)).catch(() => {});
   }, [activeAccountId]);
 
   useEffect(() => { refreshData(); const id = setInterval(refreshData, 5000); return () => clearInterval(id); }, [refreshData]);
@@ -192,6 +195,18 @@ export default function DashboardPage() {
   const isDemoAccount = activeAccount?.accountCategory === 'DEMO' || activeAccount?.server?.startsWith('Demo');
   const isLiveAccount = activeAccount?.accountCategory === 'LIVE' || activeAccount?.server?.startsWith('Live');
   const isAccountActive = activeAccount?.status === 'ACTIVE';
+
+  // ── derive analytics stats ──────────────────────────────────────────
+  const today = new Date().toISOString().slice(0, 10);
+  const weekAgo = new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10);
+  const monthAgo = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const todayPnL = analytics?.equityCurve.filter(e => e._id === today).reduce((s, e) => s + e.dayPnL, 0) ?? 0;
+  const weekPnL = analytics?.equityCurve.filter(e => e._id >= weekAgo).reduce((s, e) => s + e.dayPnL, 0) ?? 0;
+  const monthPnL = analytics?.equityCurve.filter(e => e._id >= monthAgo).reduce((s, e) => s + e.dayPnL, 0) ?? 0;
+  const totalPnL = analytics?.netProfit ?? 0;
+  const winRate = analytics?.winRate ?? 0;
+  const profitFactor = analytics?.profitFactor ?? 0;
+  const totalTrades = analytics?.totalTrades ?? 0;
 
   // auth guard loading state
   if (!authChecked) {
@@ -544,6 +559,116 @@ export default function DashboardPage() {
               />
             </div>
             <p className="text-[10px] text-muted mt-1">Margin level {marginLevel === Infinity ? '—' : fmt(marginLevel) + '%'}</p>
+          </div>
+        )}
+      </section>
+
+      {/* ── Trading Summary ────────────────────────────────────────── */}
+      <section className="glass rounded-xl p-3 sm:p-4 mb-2 sm:mb-3">
+        <h3 className="text-sm font-semibold mb-3">Trading Summary</h3>
+        
+        {/* P&L Period Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-4">
+          {/* Today's P&L */}
+          <div className="rounded-lg bg-[var(--surface)] p-3">
+            <p className="text-[10px] text-muted uppercase tracking-widest">Today</p>
+            <p className={`text-lg font-bold ${pnlColor(todayPnL)}`}>
+              {todayPnL >= 0 ? '+' : ''}${fmt(todayPnL)}
+            </p>
+          </div>
+          {/* Week P&L */}
+          <div className="rounded-lg bg-[var(--surface)] p-3">
+            <p className="text-[10px] text-muted uppercase tracking-widest">This Week</p>
+            <p className={`text-lg font-bold ${pnlColor(weekPnL)}`}>
+              {weekPnL >= 0 ? '+' : ''}${fmt(weekPnL)}
+            </p>
+          </div>
+          {/* Month P&L */}
+          <div className="rounded-lg bg-[var(--surface)] p-3">
+            <p className="text-[10px] text-muted uppercase tracking-widest">This Month</p>
+            <p className={`text-lg font-bold ${pnlColor(monthPnL)}`}>
+              {monthPnL >= 0 ? '+' : ''}${fmt(monthPnL)}
+            </p>
+          </div>
+          {/* Total P&L */}
+          <div className="rounded-lg bg-[var(--surface)] p-3">
+            <p className="text-[10px] text-muted uppercase tracking-widest">Total P&L</p>
+            <p className={`text-lg font-bold ${pnlColor(totalPnL)}`}>
+              {totalPnL >= 0 ? '+' : ''}${fmt(totalPnL)}
+            </p>
+          </div>
+        </div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+          {/* Win Rate */}
+          <div>
+            <p className="text-[10px] text-muted uppercase tracking-widest">Win Rate</p>
+            <div className="flex items-baseline gap-1">
+              <p className={`text-xl font-bold ${winRate >= 50 ? 'text-neon' : winRate > 0 ? 'text-loss' : 'text-muted'}`}>
+                {fmt(winRate, 1)}%
+              </p>
+            </div>
+            {totalTrades > 0 && (
+              <p className="text-[10px] text-muted mt-0.5">
+                {analytics?.winningTrades}W / {analytics?.losingTrades}L
+              </p>
+            )}
+          </div>
+          {/* Profit Factor */}
+          <div>
+            <p className="text-[10px] text-muted uppercase tracking-widest">Profit Factor</p>
+            <p className={`text-xl font-bold ${profitFactor >= 1.5 ? 'text-neon' : profitFactor >= 1 ? 'text-gold' : profitFactor > 0 ? 'text-loss' : 'text-muted'}`}>
+              {profitFactor === 0 || profitFactor === Infinity ? '—' : fmt(profitFactor, 2)}
+            </p>
+            <p className="text-[10px] text-muted mt-0.5">Gross P/L ratio</p>
+          </div>
+          {/* Total Trades */}
+          <div>
+            <p className="text-[10px] text-muted uppercase tracking-widest">Total Trades</p>
+            <p className="text-xl font-bold">{totalTrades}</p>
+            <p className="text-[10px] text-muted mt-0.5">Closed positions</p>
+          </div>
+          {/* Avg Trade P&L */}
+          <div>
+            <p className="text-[10px] text-muted uppercase tracking-widest">Avg Trade</p>
+            <p className={`text-xl font-bold ${pnlColor(totalTrades > 0 ? totalPnL / totalTrades : 0)}`}>
+              ${totalTrades > 0 ? fmt(totalPnL / totalTrades) : '0.00'}
+            </p>
+            <p className="text-[10px] text-muted mt-0.5">Per trade</p>
+          </div>
+        </div>
+
+        {/* Equity Curve Mini Chart */}
+        {analytics && analytics.equityCurve.length > 1 && (
+          <div className="mt-4 pt-3 border-t border-[var(--border)]">
+            <p className="text-[10px] text-muted uppercase tracking-widest mb-2">P&L Trend (Last 30 Days)</p>
+            <div className="h-16 flex items-end gap-0.5">
+              {analytics.equityCurve.slice(-30).map((day, i) => {
+                const maxPnL = Math.max(...analytics.equityCurve.slice(-30).map(d => Math.abs(d.dayPnL)), 1);
+                const height = Math.abs(day.dayPnL) / maxPnL * 100;
+                return (
+                  <div
+                    key={day._id}
+                    className={`flex-1 rounded-t-sm transition-all ${day.dayPnL >= 0 ? 'bg-neon/70' : 'bg-loss/70'}`}
+                    style={{ height: `${Math.max(height, 4)}%` }}
+                    title={`${day._id}: ${day.dayPnL >= 0 ? '+' : ''}$${fmt(day.dayPnL)}`}
+                  />
+                );
+              })}
+            </div>
+            <div className="flex justify-between text-[9px] text-muted mt-1">
+              <span>{analytics.equityCurve.slice(-30)[0]?._id}</span>
+              <span>{analytics.equityCurve.slice(-1)[0]?._id}</span>
+            </div>
+          </div>
+        )}
+
+        {/* No trades message */}
+        {totalTrades === 0 && (
+          <div className="mt-4 pt-3 border-t border-[var(--border)] text-center py-4">
+            <p className="text-sm text-muted">No closed trades yet</p>
+            <p className="text-[10px] text-muted mt-1">Open and close positions to see your trading statistics here</p>
           </div>
         )}
       </section>
