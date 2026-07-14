@@ -221,6 +221,40 @@ footer{margin-top:100px;border-top:1px solid rgba(233,240,252,.1);background:rgb
 .foot-links-row{display:flex;flex-wrap:wrap;gap:20px;padding:20px 0;border-top:1px solid rgba(233,240,252,.1);font-size:14px}
 .foot-links-row a{color:rgba(233,240,252,.75);transition:.2s}.foot-links-row a:hover{color:var(--signal)}
 
+/* Hide floating HUD cards on mobile to prevent overlap */
+@media(max-width:768px){
+  .hud{display:none!important}
+  .hero{padding-top:80px}
+  .hero h1{font-size:clamp(28px,8vw,48px)}
+  .hero .rotating-wrap{font-size:clamp(15px,4vw,20px)}
+  .hero p.sub{font-size:15px}
+  .hero-ctas{gap:10px}
+  .hero-ctas .btn{padding:11px 20px;font-size:13px}
+  .hero-meta{font-size:10px}
+  .scroll-cue{display:none}
+  section.block{margin-top:64px}
+  .cta-band{padding:36px 16px;margin-top:64px}
+  .cta-band h2{font-size:24px}
+  .cta-band p{font-size:14px}
+  .sec-head h2{font-size:24px}
+  .sec-head p{font-size:14px}
+  .card3d{padding:20px}
+  .acct{padding:20px}
+  .acct .spread{font-size:24px}
+  .promo-card{padding:24px}
+  .plat-card{padding:24px}
+  .qs-step{padding:22px}
+  .mkt-detail{padding:20px!important}
+  .mkt-detail .stats-card{padding:20px}
+  .trust-card{padding:24px}
+  .foot-grid{padding:36px 0}
+  .tape li{padding:9px 14px;font-size:11px}
+  .modal{padding:24px}
+  .modal h3{font-size:18px}
+  nav.topbar .nav-inner{height:60px}
+  .brand{font-size:15px}
+}
+
 @media(prefers-reduced-motion:reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
   .reveal{opacity:1;transform:none}.scroll-cue{display:none}
@@ -520,11 +554,13 @@ setInterval(()=>{
   document.getElementById('pxBtc').textContent=btc.toLocaleString('en-US');
 },1500);
 
-/* HUD parallax */
-addEventListener('pointermove',e=>{
-  const dx=(e.clientX/innerWidth-0.5),dy=(e.clientY/innerHeight-0.5);
-  [['hud1',26],['hud2',-32],['hud3',20]].forEach(([id,k])=>{const el=document.getElementById(id);if(el)el.style.transform=`translate(${dx*k}px,${dy*k}px)`;});
-},{passive:true});
+/* HUD parallax — disabled on touch/mobile */
+if(matchMedia('(min-width:769px) and (pointer:fine)').matches){
+  addEventListener('pointermove',e=>{
+    const dx=(e.clientX/innerWidth-0.5),dy=(e.clientY/innerHeight-0.5);
+    [['hud1',26],['hud2',-32],['hud3',20]].forEach(([id,k])=>{const el=document.getElementById(id);if(el)el.style.transform=`translate(${dx*k}px,${dy*k}px)`;});
+  },{passive:true});
+}
 
 /* Icon helpers */
 const ICONS={
