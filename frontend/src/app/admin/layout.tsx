@@ -80,6 +80,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isLoginPage = pathname === '/admin/login';
 
   useEffect(() => {
+    // Load tokens from localStorage into module-level variables
+    // so that API calls include the Authorization header
+    appApi.loadTokens();
     if (isLoginPage) {
       setAuthState('authenticated');
       return;

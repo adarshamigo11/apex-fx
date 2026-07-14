@@ -5,6 +5,9 @@ import { appApi } from '@/lib/appApi';
 import { StatusBadge, Modal, PermGate, Spinner } from '@/components/admin';
 
 export default function AdminUserDetailPage() {
+  // Load tokens from localStorage into module-level variables
+  // so that API calls include the Authorization header
+  appApi.loadTokens();
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [data, setData] = useState<any>(null);

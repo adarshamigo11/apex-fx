@@ -15,6 +15,11 @@ export function loadTokens() {
 }
 
 async function raw(path: string, init: RequestInit = {}) {
+  // Auto-load tokens from localStorage if not in memory (e.g. after page navigation)
+  if (!accessToken && typeof window !== 'undefined') {
+    accessToken = localStorage.getItem('at');
+    refreshToken = localStorage.getItem('rt');
+  }
   const headers: Record<string, string> = { 'Content-Type': 'application/json', ...(init.headers as any) };
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   return fetch(`${BASE}${path}`, { ...init, headers });

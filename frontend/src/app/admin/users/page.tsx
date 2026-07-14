@@ -23,6 +23,9 @@ const ROLE_COLORS: Record<string, string> = {
 };
 
 export default function AdminUsersPage() {
+  // Load tokens from localStorage into module-level variables
+  // so that API calls include the Authorization header
+  appApi.loadTokens();
   const [users, setUsers] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
