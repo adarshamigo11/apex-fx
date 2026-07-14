@@ -6,9 +6,8 @@ import { useState, useEffect } from 'react';
 import { appApi } from '../lib/appApi';
 
 const NAV_ITEMS = [
-  { label: 'Dashboard', href: '/', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },
+  { label: 'Dashboard', href: '/dashboard', icon: 'M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' },
   { label: 'Market Watch', href: '/watchlist', icon: 'M22 7l-8.5 8.5-5-5L2 17' },
-  { label: 'Trading Terminal', href: '/dashboard', icon: 'M2 3h20v14H2zM8 21h8M12 17v4' },
   { label: 'Portfolio', href: '/portfolio', icon: 'M2 7h20v14H2zM16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16' },
   { label: 'Wallet', href: '/wallet', icon: 'M21 4H3a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h18a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zM1 10h22' },
   { label: 'Trading Accounts', href: '/accounts', icon: 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75' },
