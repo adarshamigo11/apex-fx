@@ -407,32 +407,6 @@ footer{margin-top:100px;border-top:1px solid rgba(233,240,252,.1);background:rgb
 
 </div><!-- /content -->
 
-<!-- SECURE ACCOUNT ACCESS MODAL -->
-<div class="modal-backdrop" id="accessModal" role="dialog" aria-modal="true" aria-labelledby="accTitle">
-  <div class="modal glass-strong">
-    <button class="modal-close" id="modalClose" aria-label="Close">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12" stroke-linecap="round"/></svg>
-    </button>
-    <p class="eyebrow" style="margin-bottom:8px">Secure Portal</p>
-    <h3 id="accTitle">Choose your account</h3>
-    <p>Select how you want to access the trading platform. Demo accounts use virtual funds.</p>
-    <div class="choices">
-      <button class="choice" data-secure-go="demo">
-        <span class="icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 15a3 3 0 100-6 3 3 0 000 6z"/><path d="M2 12a10 10 0 1120 0 10 10 0 01-20 0" stroke-linecap="round"/></svg></span>
-        <div><div class="title">Demo Account</div><div class="desc">Practice with virtual funds and live market pricing.</div></div>
-      </button>
-      <button class="choice" data-secure-go="live">
-        <span class="icon"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="4" y="7" width="16" height="14" rx="2.5"/><path d="M4 11h16M12 15h.01" stroke-linecap="round"/><path d="M8 4h8" stroke-linecap="round"/></svg></span>
-        <div><div class="title">Live Account</div><div class="desc">Trade with real funds on institutional pricing.</div></div>
-      </button>
-    </div>
-    <div class="secure-note">
-      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 4.6-3 8.4-7 10-4-1.6-7-5.4-7-10V6l7-3z" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span>Login paths are generated client-side and not exposed to crawlers.</span>
-    </div>
-  </div>
-</div>
-
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script>
 /* =========================================================
@@ -642,28 +616,28 @@ function bindTilt(){
 }
 observe();bindTilt();
 
-/* Secure account-access modal */
+/* Direct navigation - no modal */
 (function(){
-  const modal=document.getElementById('accessModal');
-  const close=document.getElementById('modalClose');
-  const openBtns=document.querySelectorAll('[data-secure-open]');
-  const goBtns=document.querySelectorAll('[data-secure-go]');
-  function openModal(prefill){
-    modal.classList.add('open');document.body.classList.add('no-scroll');
-    if(prefill==='demo'){const db=modal.querySelector('[data-secure-go="demo"]');if(db)db.focus();}
-  }
-  function closeModal(){modal.classList.remove('open');document.body.classList.remove('no-scroll');}
-  openBtns.forEach(b=>b.addEventListener('click',()=>openModal(b.dataset.prefill)));
-  close.addEventListener('click',closeModal);
-  modal.addEventListener('click',e=>{if(e.target===modal)closeModal()});
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'&&modal.classList.contains('open'))closeModal()});
-  const routes={demo:atob('L2xvZ2lu'),live:atob('L3JlZ2lzdGVy')};
   const nonce=Date.now().toString(36);
-  goBtns.forEach(b=>b.addEventListener('click',()=>{
-    const type=b.getAttribute('data-secure-go');
-    const base=routes[type];if(!base)return;
-    setTimeout(()=>{window.location.href=base+'?ref='+encodeURIComponent(nonce)+'&t='+Date.now();},80);
-  }));
+  const ref='?ref='+encodeURIComponent(nonce)+'&t='+Date.now();
+  
+  // All buttons with data-secure-open attribute
+  document.querySelectorAll('[data-secure-open]').forEach(btn=>{
+    const prefill=btn.dataset.prefill;
+    btn.addEventListener('click',()=>{
+      if(prefill==='demo'){
+        window.location.href='/register/demo'+ref;
+      } else {
+        // "Log in" buttons have text containing "log" or "login"
+        const text=btn.textContent.toLowerCase();
+        if(text.includes('log in')||text.includes('login')||text.includes('client portal')){
+          window.location.href='/login'+ref;
+        } else {
+          window.location.href='/register/live'+ref;
+        }
+      }
+    });
+  });
 })();
 </script>
 </body>
