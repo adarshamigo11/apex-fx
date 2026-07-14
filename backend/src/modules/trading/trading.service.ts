@@ -4,7 +4,7 @@
 // ============================================================================
 import { ObjectId } from 'mongodb';
 import { col, COL, nextSequence, oid } from '../../db/collections';
-import { TradingAccountDoc, PositionDoc } from '../../db/models';
+import { TradingAccountDoc, PositionDoc, UserDoc } from '../../db/models';
 import { env } from '../../config/env';
 import { badRequest, notFound, forbidden } from '../../common/errors';
 import * as engine from './engine';
@@ -30,6 +30,12 @@ export async function placeMarketOrder(accountId: string, input: {
   // Check account status - must be ACTIVE to trade
   if (account.status !== 'ACTIVE') {
     throw forbidden(`Account is not active. Current status: ${account.status}. Please contact support to activate your account.`);
+  }
+
+  // Check user status - suspended/banned/frozen users cannot trade
+  const user = await col<UserDoc>(COL.users).findOne({ _id: account.userId });
+  if (user && !['ACTIVE', 'PENDING'].includes(user.status)) {
+    throw forbidden(`User account is ${user.status}. Trading is blocked. Please contact support.`);
   }
   
   const symbol = await col(COL.symbols).findOne({ name: input.symbol, enabled: true });
