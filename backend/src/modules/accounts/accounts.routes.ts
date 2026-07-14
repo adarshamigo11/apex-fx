@@ -6,12 +6,26 @@ import { authGuard } from '../../middleware/auth';
 import * as svc from './accounts.service';
 
 const r = Router();
-r.use(authGuard);
 
-// GET available account types (admin-configured)
+// ── Public endpoints (no auth required) ──────────────────────────────────
+
+// GET /types — All enabled account types
 r.get('/types', asyncHandler(async (_req, res) => {
   res.json(await svc.getAvailableAccountTypes());
 }));
+
+// GET /types/live — Only LIVE account types (for Create Account flow)
+r.get('/types/live', asyncHandler(async (_req, res) => {
+  res.json(await svc.getLiveAccountTypes());
+}));
+
+// GET /types/demo — Only DEMO account types
+r.get('/types/demo', asyncHandler(async (_req, res) => {
+  res.json(await svc.getDemoAccountTypes());
+}));
+
+// ── Authenticated endpoints ──────────────────────────────────────────────
+r.use(authGuard);
 
 r.get('/', asyncHandler(async (req, res) => {
   res.json(await svc.listAccounts(req.user!.sub));

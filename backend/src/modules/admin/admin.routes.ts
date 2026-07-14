@@ -587,4 +587,25 @@ r.post('/account-types/:id/toggle', requirePermission('settings.edit'), asyncHan
   res.json(await svc.toggleAccountType(req.user!.sub, req.params.id));
 }));
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  TRADING ACCOUNTS (Admin Management)
+// ═══════════════════════════════════════════════════════════════════════════
+r.get('/trading-accounts', requirePermission('users.view'), asyncHandler(async (req, res) => {
+  const { page, limit } = pageQuery(req);
+  res.json(await svc.listTradingAccounts({
+    status: req.query.status as string,
+    userId: req.query.userId as string,
+    accountCategory: req.query.accountCategory as string,
+    page, limit,
+  }));
+}));
+
+r.patch('/trading-accounts/:id/activate', requirePermission('users.edit'), asyncHandler(async (req, res) => {
+  res.json(await svc.activateTradingAccount(req.user!.sub, req.params.id));
+}));
+
+r.patch('/trading-accounts/:id/deactivate', requirePermission('users.edit'), asyncHandler(async (req, res) => {
+  res.json(await svc.deactivateTradingAccount(req.user!.sub, req.params.id));
+}));
+
 export default r;

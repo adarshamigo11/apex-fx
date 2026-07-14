@@ -1,13 +1,14 @@
-﻿'use client';
+'use client';
 
 import { useEffect, useState, useRef, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { createChart, IChartApi, ISeriesApi, CandlestickData, Time } from 'lightweight-charts';
 import { useLivePrices, Tick } from '../../lib/useLivePrices';
 import { useTheme } from '../../lib/useTheme';
 import { appApi } from '../../lib/appApi';
 
-/* в”Ђв”Ђ types в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
-interface Account { _id: string; login: string; type: string; balance: number; currency: string; leverage: number; }
+/* ── types ──────────────────────────────────────────────────────── */
+interface Account { _id: string; login: string; type: string; balance: number; currency: string; leverage: number; accountCategory?: string; accountType?: string; status?: string; server?: string; }
 interface Position { _id: string; ticket: number; symbolName: string; side: 'BUY' | 'SELL'; lots: number; openPrice: number; marginUsed: number; commission: number; swap: number; stopLoss?: number | null; takeProfit?: number | null; openTime: string; }
 interface Snapshot { balance: number; equity: number; usedMargin: number; freeMargin: number; marginLevel: number; floatingPnL: number; }
 
@@ -18,13 +19,39 @@ const LOTS = [0.01, 0.02, 0.05, 0.1, 0.2, 0.5, 1, 2, 5];
 function pnlColor(v: number) { return v > 0 ? 'text-neon' : v < 0 ? 'text-loss' : 'text-muted'; }
 function fmt(n: number | null | undefined, d = 2) { return (n ?? 0).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d }); }
 
-/* в”Ђв”Ђ component в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */
+// Generate realistic mock candle data when backend is unavailable
+function generateMockCandles(symbol: string, tf: string, count = 200): CandlestickData[] {
+  const basePrices: Record<string, number> = { XAUUSD: 2384, EURUSD: 1.084, GBPUSD: 1.272, USDJPY: 154.2, US30: 39500, NAS100: 18200, BTCUSD: 67400 };
+  const base = basePrices[symbol] || 100;
+  const volatility = base * 0.003;
+  const tfMinutes: Record<string, number> = { M1: 1, M5: 5, M15: 15, H1: 60, H4: 240, D1: 1440 };
+  const interval = (tfMinutes[tf] || 5) * 60;
+  const now = Math.floor(Date.now() / 1000);
+  const startTime = now - count * interval;
+  const candles: CandlestickData[] = [];
+  let price = base;
+  for (let i = 0; i < count; i++) {
+    const change = (Math.random() - 0.48) * volatility;
+    const open = price;
+    const close = open + change;
+    const high = Math.max(open, close) + Math.random() * volatility * 0.5;
+    const low = Math.min(open, close) - Math.random() * volatility * 0.5;
+    candles.push({ time: (startTime + i * interval) as Time, open: +open.toFixed(5), high: +high.toFixed(5), low: +low.toFixed(5), close: +close.toFixed(5) });
+    price = close;
+  }
+  return candles;
+}
+
+/* ── component ──────────────────────────────────────────────────── */
 export default function DashboardPage() {
   const { theme, toggle } = useTheme();
   const prices = useLivePrices();
 
+  const router = useRouter();
+
   // auth & data
   const [user, setUser] = useState<any>(null);
+  const [authChecked, setAuthChecked] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [activeAccountId, setActiveAccountId] = useState<string>('');
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
@@ -45,34 +72,41 @@ export default function DashboardPage() {
   const [tradeMsg, setTradeMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [bottomTab, setBottomTab] = useState<'positions' | 'pending' | 'history'>('positions');
 
-  // account types (admin-configured)
-  const [accountTypes, setAccountTypes] = useState<any[]>([]);
-  const [showOpenAccount, setShowOpenAccount] = useState(false);
-  const [selectedType, setSelectedType] = useState<any>(null);
-  const [openingAccount, setOpeningAccount] = useState(false);
+  // upgrade to live
+  const [liveAccountTypes, setLiveAccountTypes] = useState<any[]>([]);
+  const [showUpgrade, setShowUpgrade] = useState(false);
+  const [upgradeType, setUpgradeType] = useState<any>(null);
+  const [upgrading, setUpgrading] = useState(false);
 
-  // в”Ђв”Ђ init в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── init: auth guard + load data ──────────────────────────────────
   useEffect(() => {
     appApi.loadTokens();
-    appApi.me().then(setUser).catch(() => setUser(null));
+    const u = appApi.getCurrentUser();
+    if (!u) {
+      router.replace('/login');
+      return;
+    }
+    setUser(u);
+    setAuthChecked(true);
+    appApi.me().then(setUser).catch(() => { router.replace('/login'); });
     appApi.accounts().then((a: Account[]) => {
       setAccounts(a);
       if (a.length > 0 && !activeAccountId) setActiveAccountId(a[0]._id);
     }).catch(() => setAccounts([]));
-    appApi.accountTypes().then(setAccountTypes).catch(() => {});
+    appApi.liveAccountTypes().then(setLiveAccountTypes).catch(() => {});
   }, []);
 
-  // в”Ђв”Ђ fetch snapshot + positions в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── fetch snapshot + positions ─────────────────────────────────────
   const refreshData = useCallback(() => {
     if (!activeAccountId) return;
     appApi.trading.snapshot(activeAccountId).then((s: Snapshot) => setSnapshot(s)).catch(() => {});
-    // fetch open positions via snapshot enrichment вЂ” we need a dedicated endpoint
+    // fetch open positions via snapshot enrichment — we need a dedicated endpoint
     // For now, use the accounts/:id/snapshot response which includes position details
   }, [activeAccountId]);
 
   useEffect(() => { refreshData(); const id = setInterval(refreshData, 5000); return () => clearInterval(id); }, [refreshData]);
 
-  // в”Ђв”Ђ chart в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── chart ─────────────────────────────────────────────────────────
   useEffect(() => {
     if (!chartContainerRef.current) return;
     // destroy previous
@@ -100,15 +134,22 @@ export default function DashboardPage() {
     });
     seriesRef.current = series;
 
-    // load candles
+    // load candles (fallback to mock data if backend unavailable)
     appApi.trading.candles(selectedSymbol, selectedTf).then((candles: any[]) => {
-      const data: CandlestickData[] = candles.map((c: any) => ({
-        time: c.time as Time,
-        open: c.open, high: c.high, low: c.low, close: c.close,
-      }));
-      series.setData(data);
+      if (candles && candles.length > 0) {
+        const data: CandlestickData[] = candles.map((c: any) => ({
+          time: c.time as Time,
+          open: c.open, high: c.high, low: c.low, close: c.close,
+        }));
+        series.setData(data);
+      } else {
+        series.setData(generateMockCandles(selectedSymbol, selectedTf));
+      }
       chart.timeScale().fitContent();
-    }).catch(() => {});
+    }).catch(() => {
+      series.setData(generateMockCandles(selectedSymbol, selectedTf));
+      chart.timeScale().fitContent();
+    });
 
     // resize
     const ro = new ResizeObserver((entries) => {
@@ -118,7 +159,7 @@ export default function DashboardPage() {
     return () => { ro.disconnect(); chart.remove(); chartRef.current = null; };
   }, [selectedSymbol, selectedTf, theme]);
 
-  // в”Ђв”Ђ place order в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── place order ───────────────────────────────────────────────────
   const placeOrder = async () => {
     if (!activeAccountId) { setTradeMsg({ text: 'Select a trading account first', ok: false }); return; }
     setTradeMsg(null);
@@ -135,12 +176,12 @@ export default function DashboardPage() {
     }
   };
 
-  // в”Ђв”Ђ close position в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── close position ────────────────────────────────────────────────
   const closePos = async (id: string) => {
     try { await appApi.trading.closePosition(id); refreshData(); } catch {}
   };
 
-  // в”Ђв”Ђ derive live P&L for display в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ
+  // ── derive live P&L for display ───────────────────────────────────
   const liveTick = prices[selectedSymbol];
   const equity = snapshot ? snapshot.equity : 0;
   const floatingPnL = snapshot ? snapshot.floatingPnL : 0;
@@ -148,10 +189,25 @@ export default function DashboardPage() {
   const freeMargin = snapshot ? snapshot.freeMargin : 0;
   const marginLevel = snapshot ? snapshot.marginLevel : 0;
   const activeAccount = accounts.find((a) => a._id === activeAccountId);
+  const isDemoAccount = activeAccount?.accountCategory === 'DEMO' || activeAccount?.server?.startsWith('Demo');
+  const isLiveAccount = activeAccount?.accountCategory === 'LIVE' || activeAccount?.server?.startsWith('Live');
+  const isAccountActive = activeAccount?.status === 'ACTIVE';
+
+  // auth guard loading state
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-[#39ff8b] border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-muted mt-3">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <main className="min-h-screen p-2 sm:p-3 max-w-[1440px] mx-auto">
-      {/* в”Ђв”Ђ header в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */}
+      {/* ── header ───────────────────────────────────────────────── */}
       <header className="flex items-center justify-between py-2 mb-2">
         <div className="flex items-center gap-2">
           <h1 className="text-lg sm:text-xl font-bold"><span className="text-gold">Apex</span><span className="text-neon">FX</span></h1>
@@ -168,33 +224,64 @@ export default function DashboardPage() {
             </button>
           )}
           <button onClick={toggle} className="glass rounded-full w-8 h-8 grid place-items-center text-sm">
-            {theme === 'dark' ? 'вЂпёЏ' : 'рџЊ™'}
+            {theme === 'dark' ? '☀️' : '🌙'}
           </button>
         </div>
       </header>
 
-      {/* в”Ђв”Ђ account selector + equity row в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */}
+      {/* ── account selector + equity row ────────────────────────── */}
       <section className="grid grid-cols-3 md:grid-cols-5 gap-2 sm:gap-3 mb-2 sm:mb-3">
         {/* Account selector */}
         <div className="glass rounded-xl p-2 sm:p-3 col-span-3 md:col-span-2">
-          <p className="text-[10px] text-muted uppercase tracking-widest mb-1">Trading Account</p>
-          <select
-            value={activeAccountId}
-            onChange={(e) => setActiveAccountId(e.target.value)}
-            className="w-full bg-transparent text-sm font-semibold outline-none cursor-pointer"
-          >
-            {accounts.length === 0 && <option value="">No accounts вЂ” create one below</option>}
-            {accounts.map((a) => (
-              <option key={a._id} value={a._id}>
-                #{a.login} {a.type} 1:{a.leverage} вЂ” ${fmt(a.balance)}
-              </option>
-            ))}
-          </select>
-          {accounts.length === 0 && (
-            <button onClick={() => setShowOpenAccount(true)} className="text-xs rounded-lg bg-emerald-600 text-white px-3 py-1 mt-2">+ Open Account</button>
+          <div className="flex items-center justify-between mb-1">
+            <p className="text-[10px] text-muted uppercase tracking-widest">Trading Account</p>
+            {activeAccount && (
+              <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                isDemoAccount ? 'bg-[#66b2ff]/15 text-[#66b2ff]' : isLiveAccount ? 'bg-[#39ff8b]/15 text-[#39ff8b]' : 'bg-white/10 text-muted'
+              }`}>
+                {isDemoAccount ? 'DEMO' : isLiveAccount ? 'LIVE' : activeAccount.accountCategory || ''}
+              </span>
+            )}
+          </div>
+          {activeAccount ? (
+            <div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-base font-bold">{activeAccount.accountType || activeAccount.type || 'Standard'}</span>
+                <span className="text-[10px] text-muted font-mono">#{activeAccount.login}</span>
+              </div>
+              <div className="flex items-center gap-2 mt-0.5 text-[11px] text-muted">
+                <span>1:{activeAccount.leverage}</span>
+                {activeAccount.server && <span className="text-muted/60">|</span>}
+                {activeAccount.server && <span>{activeAccount.server}</span>}
+                {activeAccount.status && (
+                  <>
+                    <span className="text-muted/60">|</span>
+                    <span className={activeAccount.status === 'ACTIVE' ? 'text-[#39ff8b]' : 'text-[#ffd166]'}>{activeAccount.status}</span>
+                  </>
+                )}
+              </div>
+              <select
+                value={activeAccountId}
+                onChange={(e) => setActiveAccountId(e.target.value)}
+                className="w-full bg-transparent text-xs outline-none cursor-pointer mt-1.5 border-t border-[var(--border)] pt-1.5"
+              >
+                {accounts.map((a) => (
+                  <option key={a._id} value={a._id}>
+                    #{a.login} {a.accountType || a.type} 1:{a.leverage} — ${fmt(a.balance)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <p className="text-sm text-muted py-1">No trading accounts</p>
+              <p className="text-[10px] text-muted mt-0.5">Visit <a href="/accounts" className="text-[#39ff8b] hover:underline">/accounts</a> to create one</p>
+            </div>
           )}
-          {accounts.length > 0 && (
-            <button onClick={() => setShowOpenAccount(true)} className="text-[10px] text-[#39ff8b] hover:underline mt-1">+ Open New Account</button>
+          {accounts.length > 0 && isDemoAccount && (
+            <div className="flex items-center gap-3 mt-1.5">
+              <button onClick={() => setShowUpgrade(true)} className="text-[10px] text-[#ffd166] hover:underline">Upgrade to Live →</button>
+            </div>
           )}
         </div>
 
@@ -217,7 +304,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* в”Ђв”Ђ main grid: chart + trade panel в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */}
+      {/* ── main grid: chart + trade panel ───────────────────────── */}
       <section className="grid lg:grid-cols-[1fr_320px] gap-2 sm:gap-3 mb-2 sm:mb-3">
         {/* Chart */}
         <div className="glass rounded-xl p-2 sm:p-3">
@@ -250,6 +337,26 @@ export default function DashboardPage() {
         {/* Trade panel */}
         <div className="glass rounded-xl p-3 sm:p-4 flex flex-col gap-2 sm:gap-3">
           <h3 className="text-sm font-semibold">New Order</h3>
+
+          {/* Account not active warning */}
+          {activeAccount && !isAccountActive && (
+            <div className="rounded-lg bg-[#ffd166]/10 border border-[#ffd166]/30 p-3">
+              <div className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-[#ffd166] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-[#ffd166]">Account Not Active</p>
+                  <p className="text-[10px] text-muted mt-0.5">
+                    {activeAccount.status === 'PENDING' 
+                      ? 'Your account is pending admin approval. Trading will be available once activated.'
+                      : `Your account is ${activeAccount.status?.toLowerCase()}. Please contact support.`
+                    }
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Symbol display */}
           <div className="flex items-center justify-between">
@@ -287,7 +394,7 @@ export default function DashboardPage() {
           <div>
             <label className="text-[10px] text-muted uppercase tracking-widest">Lots</label>
             <div className="flex items-center gap-1 mt-1">
-              <button onClick={() => setLots((l) => Math.max(0.01, +(+l - 0.01).toFixed(2)))} className="glass rounded-lg w-8 h-8 grid place-items-center text-sm">в€’</button>
+              <button onClick={() => setLots((l) => Math.max(0.01, +(+l - 0.01).toFixed(2)))} className="glass rounded-lg w-8 h-8 grid place-items-center text-sm">−</button>
               <input type="number" value={lots.toFixed(2)} onChange={(e) => setLots(Math.max(0.01, parseFloat(e.target.value) || 0.01))}
                 step="0.01" min="0.01" className="flex-1 bg-transparent text-center font-mono text-sm outline-none glass rounded-lg py-1" />
               <button onClick={() => setLots((l) => +(+l + 0.01).toFixed(2))} className="glass rounded-lg w-8 h-8 grid place-items-center text-sm">+</button>
@@ -306,22 +413,24 @@ export default function DashboardPage() {
           <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-[10px] text-muted uppercase tracking-widest">Stop Loss</label>
-              <input type="number" value={sl} onChange={(e) => setSl(e.target.value)} placeholder="вЂ”"
+              <input type="number" value={sl} onChange={(e) => setSl(e.target.value)} placeholder="—"
                 className="w-full mt-1 bg-transparent glass rounded-lg px-2 py-1 text-sm font-mono outline-none" />
             </div>
             <div>
               <label className="text-[10px] text-muted uppercase tracking-widest">Take Profit</label>
-              <input type="number" value={tp} onChange={(e) => setTp(e.target.value)} placeholder="вЂ”"
+              <input type="number" value={tp} onChange={(e) => setTp(e.target.value)} placeholder="—"
                 className="w-full mt-1 bg-transparent glass rounded-lg px-2 py-1 text-sm font-mono outline-none" />
             </div>
           </div>
 
           {/* Execute */}
-          <button onClick={placeOrder}
+          <button onClick={placeOrder} disabled={!isAccountActive}
             className={`w-full py-3 rounded-xl font-bold text-sm transition-all ${
-              side === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'
+              !isAccountActive 
+                ? 'bg-gray-600 cursor-not-allowed opacity-50' 
+                : side === 'BUY' ? 'bg-emerald-600 hover:bg-emerald-500 text-white' : 'bg-red-600 hover:bg-red-500 text-white'
             }`}>
-            {side} {lots} {selectedSymbol}
+            {!isAccountActive ? 'Account Not Active' : `${side} ${lots} ${selectedSymbol}`}
           </button>
 
           {tradeMsg && (
@@ -330,7 +439,7 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      {/* в”Ђв”Ђ positions / pending / history tabs в”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђв”Ђ */}
+      {/* ── positions / pending / history tabs ──────────────────── */}
       <section className="glass rounded-xl p-3 sm:p-4 mb-2 sm:mb-3">
         <div className="flex gap-4 border-b border-[var(--border)] mb-3">
           {(['positions', 'pending', 'history'] as const).map((tab) => (
@@ -379,7 +488,7 @@ export default function DashboardPage() {
                     <td className={`py-2 pr-2 font-semibold ${p.side === 'BUY' ? 'text-neon' : 'text-loss'}`}>{p.side}</td>
                     <td className="py-2 pr-2 text-right font-mono">{p.lots}</td>
                     <td className="py-2 pr-2 text-right font-mono">{p.openPrice}</td>
-                    <td className="py-2 pr-2 text-right font-mono">{currentPrice || 'вЂ”'}</td>
+                    <td className="py-2 pr-2 text-right font-mono">{currentPrice || '—'}</td>
                     <td className={`py-2 pr-2 text-right font-mono font-semibold ${pnlColor(pnl)}`}>
                       {pnl >= 0 ? '+' : ''}{fmt(pnl)}
                     </td>
@@ -414,7 +523,7 @@ export default function DashboardPage() {
           <div>
             <p className="text-[10px] text-muted uppercase tracking-widest">Margin Level</p>
             <p className={`text-base font-bold ${marginLevel !== Infinity && marginLevel > 0 && marginLevel < 150 ? 'text-loss' : ''}`}>
-              {marginLevel === Infinity || marginLevel === 0 ? 'вЂ”' : fmt(marginLevel) + '%'}
+              {marginLevel === Infinity || marginLevel === 0 ? '—' : fmt(marginLevel) + '%'}
             </p>
           </div>
           <div>
@@ -434,44 +543,41 @@ export default function DashboardPage() {
                 style={{ width: `${Math.min(marginLevel === Infinity ? 0 : marginLevel, 100)}%` }}
               />
             </div>
-            <p className="text-[10px] text-muted mt-1">Margin level {marginLevel === Infinity ? 'вЂ”' : fmt(marginLevel) + '%'}</p>
+            <p className="text-[10px] text-muted mt-1">Margin level {marginLevel === Infinity ? '—' : fmt(marginLevel) + '%'}</p>
           </div>
         )}
       </section>
 
-      {/* Open Account Modal */}
-      {showOpenAccount && (
+      {/* Upgrade Demo to Live Modal */}
+      {showUpgrade && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass rounded-2xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
-            <h2 className="text-lg font-bold mb-1">Open New Account</h2>
-            <p className="text-xs text-muted mb-4">Choose an account type configured by your broker</p>
+            <h2 className="text-lg font-bold mb-1">Upgrade to Live Account</h2>
+            <p className="text-xs text-muted mb-4">Keep your demo account and add a live trading account</p>
 
-            {accountTypes.length === 0 ? (
-              <p className="text-sm text-muted text-center py-8">No account types available. Contact support.</p>
+            {liveAccountTypes.length === 0 ? (
+              <p className="text-sm text-muted text-center py-8">No live account types available. Contact support.</p>
             ) : (
               <div className="space-y-3">
-                {accountTypes.map((t: any) => (
+                {liveAccountTypes.map((t: any) => (
                   <button
                     key={t._id}
-                    onClick={() => setSelectedType(t)}
+                    onClick={() => setUpgradeType(t)}
                     className={`w-full text-left p-4 rounded-xl border transition-all ${
-                      selectedType?._id === t._id
-                        ? 'border-[#39ff8b] bg-[#39ff8b]/5'
+                      upgradeType?._id === t._id
+                        ? 'border-[#ffd166] bg-[#ffd166]/5'
                         : 'border-[var(--border)] hover:border-[var(--border)] hover:bg-[var(--surface)]'
                     }`}
                   >
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-semibold text-sm">{t.displayName}</span>
-                      <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${t.category === 'DEMO' ? 'bg-[#66b2ff]/15 text-[#66b2ff]' : 'bg-[#39ff8b]/15 text-[#39ff8b]'}`}>
-                        {t.category}
-                      </span>
+                      <span className="text-[10px] px-2 py-0.5 rounded font-bold bg-[#39ff8b]/15 text-[#39ff8b]">LIVE</span>
                     </div>
                     {t.description && <p className="text-[11px] text-muted mb-2">{t.description}</p>}
                     <div className="flex gap-3 text-[10px] text-muted">
                       <span>Leverage: 1:{t.defaultLeverage}</span>
                       <span>Min: ${t.minDeposit}</span>
                       {t.commission > 0 && <span>${t.commission}/lot</span>}
-                      {t.spreadMarkup > 0 && <span>+{t.spreadMarkup}pts spread</span>}
                     </div>
                   </button>
                 ))}
@@ -479,26 +585,26 @@ export default function DashboardPage() {
             )}
 
             <div className="flex justify-end gap-3 mt-5">
-              <button onClick={() => { setShowOpenAccount(false); setSelectedType(null); }} className="px-4 py-2 rounded-lg text-sm text-muted hover:text-white">Cancel</button>
+              <button onClick={() => { setShowUpgrade(false); setUpgradeType(null); }} className="px-4 py-2 rounded-lg text-sm text-muted hover:text-white">Cancel</button>
               <button
-                disabled={!selectedType || openingAccount}
+                disabled={!upgradeType || upgrading}
                 onClick={async () => {
-                  if (!selectedType) return;
-                  setOpeningAccount(true);
+                  if (!upgradeType) return;
+                  setUpgrading(true);
                   try {
-                    const acc = await appApi.createAccount({ accountTypeId: selectedType._id });
+                    const acc = await appApi.upgradeDemo({ accountTypeId: upgradeType._id });
                     setAccounts(prev => [...prev, acc]);
                     setActiveAccountId(acc._id);
-                    setShowOpenAccount(false);
-                    setSelectedType(null);
+                    setShowUpgrade(false);
+                    setUpgradeType(null);
                   } catch (e: any) {
-                    alert(e.message || 'Failed to open account');
+                    alert(e.message || 'Failed to upgrade');
                   }
-                  setOpeningAccount(false);
+                  setUpgrading(false);
                 }}
-                className="px-5 py-2 rounded-lg bg-gradient-to-r from-[#39ff8b] to-[#ffd166] text-[#0a0e1a] font-medium text-sm hover:opacity-90 disabled:opacity-50"
+                className="px-5 py-2 rounded-lg bg-gradient-to-r from-[#ffd166] to-[#39ff8b] text-[#0a0e1a] font-medium text-sm hover:opacity-90 disabled:opacity-50"
               >
-                {openingAccount ? 'Opening...' : 'Open Account'}
+                {upgrading ? 'Upgrading...' : 'Upgrade Now'}
               </button>
             </div>
           </div>

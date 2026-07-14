@@ -18,8 +18,35 @@ function qs(params: Record<string, any>): string {
 
 export const appApi = {
   me: () => api('/api/auth/me'),
-  login: (email: string, password: string) => api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  profile: () => api('/api/auth/profile'),
+
+  // Universal login (email or phone)
+  login: (identifier: string, password: string) =>
+    api('/api/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password }) }),
+
+  // Legacy register (backward compat)
   register: (body: any) => api('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
+
+  // Demo registration (auto-creates demo account, auto-login)
+  registerDemo: (body: any) => api('/api/auth/register/demo', { method: 'POST', body: JSON.stringify(body) }),
+
+  // Live registration (with account type, auto-login)
+  registerLive: (body: any) => api('/api/auth/register/live', { method: 'POST', body: JSON.stringify(body) }),
+
+  // Password recovery
+  forgotPassword: (identifier: string) =>
+    api('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ identifier }) }),
+  resetPassword: (token: string, newPassword: string) =>
+    api('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ token, newPassword }) }),
+
+  // Account switching
+  switchAccount: (accountId: string) =>
+    api('/api/auth/switch-account', { method: 'POST', body: JSON.stringify({ accountId }) }),
+
+  // Upgrade demo to live
+  upgradeDemo: (body: { accountTypeId: string; leverage?: number; currency?: string }) =>
+    api('/api/auth/upgrade-demo', { method: 'POST', body: JSON.stringify(body) }),
+
   logout: () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('at');
@@ -43,6 +70,8 @@ export const appApi = {
   submitKyc: (body: any) => api('/api/kyc/submit', { method: 'POST', body: JSON.stringify(body) }),
   accounts: () => api('/api/accounts'),
   accountTypes: () => api('/api/accounts/types'),
+  liveAccountTypes: () => api('/api/accounts/types/live'),
+  demoAccountTypes: () => api('/api/accounts/types/demo'),
   createAccount: (body: any) => api('/api/accounts', { method: 'POST', body: JSON.stringify(body) }),
   market: {
     symbols: () => api('/api/market/symbols'),
@@ -137,6 +166,12 @@ export const appApi = {
     },
     positions: {
       list: (symbol?: string) => api(`/api/admin/positions${symbol ? `?symbol=${symbol}` : ''}`),
+    },
+    // ─── Trading Accounts ───
+    tradingAccounts: {
+      list: (params: any = {}) => api(`/api/admin/trading-accounts?${qs(params)}`),
+      activate: (id: string) => api(`/api/admin/trading-accounts/${id}/activate`, { method: 'PATCH' }),
+      deactivate: (id: string) => api(`/api/admin/trading-accounts/${id}/deactivate`, { method: 'PATCH' }),
     },
     // ─── Support ───
     support: {

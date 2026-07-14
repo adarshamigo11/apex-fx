@@ -990,3 +990,76 @@ export async function toggleAccountType(actorId: string, id: string) {
   await logAction(actorId, enabled ? 'account_type.enable' : 'account_type.disable', 'account_type', id, { name: existing.name });
   return { ...existing, enabled };
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  TRADING ACCOUNTS (Admin Management)
+// ══════════════════════════════════════════════════════════════════════════
+export async function listTradingAccounts(opts: {
+  status?: string; userId?: string; accountCategory?: string; page?: number; limit?: number;
+}) {
+  const { page, limit } = clampPage(opts.page, opts.limit);
+  const filter: any = {};
+  if (opts.status) filter.status = opts.status;
+  if (opts.userId) filter.userId = new ObjectId(opts.userId);
+  if (opts.accountCategory) filter.accountCategory = opts.accountCategory;
+
+  const [items, total] = await Promise.all([
+    col<TradingAccountDoc>(COL.tradingAccounts)
+      .find(filter)
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .toArray(),
+    col(COL.tradingAccounts).countDocuments(filter),
+  ]);
+
+  // Enrich with user info
+  const userIds = [...new Set(items.map(i => i.userId.toString()))];
+  const users = await col<UserDoc>(COL.users)
+    .find({ _id: { $in: userIds.map(id => new ObjectId(id)) } })
+    .project({ passwordHash: 0 })
+    .toArray();
+  const userMap = Object.fromEntries(users.map(u => [u._id!.toString(), u]));
+
+  return {
+    items: items.map(a => ({
+      ...a,
+      user: userMap[a.userId.toString()] || null,
+    })),
+    total, page, limit,
+  };
+}
+
+export async function activateTradingAccount(actorId: string, accountId: string) {
+  const account = await col<TradingAccountDoc>(COL.tradingAccounts).findOne({ _id: oid(accountId) });
+  if (!account) throw notFound('Trading account not found');
+
+  await col(COL.tradingAccounts).updateOne(
+    { _id: oid(accountId) },
+    { $set: { status: 'ACTIVE', updatedAt: new Date() } },
+  );
+
+  await logAction(actorId, 'trading_account.activate', 'trading_account', accountId, {
+    login: account.login,
+    previousStatus: account.status,
+  });
+
+  return { ...account, status: 'ACTIVE' };
+}
+
+export async function deactivateTradingAccount(actorId: string, accountId: string) {
+  const account = await col<TradingAccountDoc>(COL.tradingAccounts).findOne({ _id: oid(accountId) });
+  if (!account) throw notFound('Trading account not found');
+
+  await col(COL.tradingAccounts).updateOne(
+    { _id: oid(accountId) },
+    { $set: { status: 'SUSPENDED', updatedAt: new Date() } },
+  );
+
+  await logAction(actorId, 'trading_account.deactivate', 'trading_account', accountId, {
+    login: account.login,
+    previousStatus: account.status,
+  });
+
+  return { ...account, status: 'SUSPENDED' };
+}

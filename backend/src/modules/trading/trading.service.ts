@@ -6,7 +6,7 @@ import { ObjectId } from 'mongodb';
 import { col, COL, nextSequence, oid } from '../../db/collections';
 import { TradingAccountDoc, PositionDoc } from '../../db/models';
 import { env } from '../../config/env';
-import { badRequest, notFound } from '../../common/errors';
+import { badRequest, notFound, forbidden } from '../../common/errors';
 import * as engine from './engine';
 import { DEFAULT_SYMBOLS } from '../marketdata/symbols';
 import { fetchQuote } from '../marketdata/marketdata.service';
@@ -26,6 +26,12 @@ export async function placeMarketOrder(accountId: string, input: {
 }) {
   const account = await col<TradingAccountDoc>(COL.tradingAccounts).findOne({ _id: oid(accountId) });
   if (!account) throw notFound('Account not found');
+  
+  // Check account status - must be ACTIVE to trade
+  if (account.status !== 'ACTIVE') {
+    throw forbidden(`Account is not active. Current status: ${account.status}. Please contact support to activate your account.`);
+  }
+  
   const symbol = await col(COL.symbols).findOne({ name: input.symbol, enabled: true });
   if (!symbol) throw badRequest('Symbol not enabled');
 

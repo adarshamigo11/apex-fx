@@ -6,10 +6,12 @@ import BottomNav from './BottomNav';
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isAuth = pathname === '/login' || pathname === '/register';
+  const isAuth = pathname === '/login' || pathname === '/register'
+    || pathname?.startsWith('/register/') || pathname === '/forgot-password';
   const isAdmin = pathname?.startsWith('/admin');
+  const isLanding = pathname === '/';
 
-  if (isAuth || isAdmin) {
+  if (isAuth || isAdmin || isLanding) {
     return <>{children}</>;
   }
 

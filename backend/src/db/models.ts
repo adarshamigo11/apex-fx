@@ -41,6 +41,9 @@ export interface AccountTypeConfigDoc {
   defaultBalance: number; // for DEMO accounts
   commission: number;     // per lot in USD
   spreadMarkup: number;   // additional spread in points
+  spreadInfo?: string;    // display string e.g. 'From 0.8 pips'
+  swapInfo?: string;      // swap information display
+  recommendedFor?: string; // e.g. 'Beginners', 'Scalpers'
   currency: string[];     // allowed currencies e.g. ['USD','EUR','GBP']
   features: string[];     // e.g. ['swap_free','expert_advisors','hedging']
   enabled: boolean;
@@ -119,12 +122,18 @@ export interface UserDoc {
   _id?: ObjectId;
   email: string; phone?: string; passwordHash: string;
   firstName?: string; lastName?: string;
+  fullName?: string;
+  country?: string;
+  dateOfBirth?: string;
+  address?: string;
   status: UserStatus; emailVerified: boolean;
   twoFactorSecret?: string; twoFactorEnabled: boolean;
   roleName: RoleName;
   verificationLevel?: VerificationLevel;
+  kycStatus?: 'NOT_STARTED' | 'PENDING' | 'APPROVED' | 'REJECTED';
   restrictions?: string[];
   referralCode: string; referredById?: ObjectId | null;
+  activeAccountId?: ObjectId | null;
   lastLoginAt?: Date | null;
   createdAt: Date; updatedAt: Date;
 }
@@ -147,7 +156,11 @@ export interface SymbolDoc {
 
 export interface TradingAccountDoc {
   _id?: ObjectId; login: string; userId: ObjectId;
-  type: AccountType; status: 'ACTIVE' | 'DISABLED' | 'ARCHIVED';
+  type: AccountType; status: 'ACTIVE' | 'DISABLED' | 'ARCHIVED' | 'PENDING';
+  accountCategory: 'DEMO' | 'LIVE';
+  accountType: string;   // e.g. 'STANDARD', 'ECN', 'VIP'
+  investorPassword?: string;
+  tradingPassword?: string;
   currency: string; server: string; leverage: number;
   balance: number; credit: number; createdAt: Date; updatedAt: Date;
 }
