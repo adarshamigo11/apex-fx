@@ -31,8 +31,8 @@ export async function api<T = any>(path: string, init: RequestInit = {}): Promis
 }
 
 export const auth = {
-  login: (email: string, password: string) =>
-    api<{ accessToken: string; refreshToken: string; user: any }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  login: (identifier: string, password: string) =>
+    api<{ accessToken: string; refreshToken: string; user: any }>('/api/auth/login', { method: 'POST', body: JSON.stringify({ identifier, password }) }),
   register: (body: any) => api('/api/auth/register', { method: 'POST', body: JSON.stringify(body) }),
 };
 export const market = { symbols: () => api('/api/market/symbols') };
